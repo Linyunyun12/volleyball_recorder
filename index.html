@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>排球得失分與多球隊管理系統</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+
+    <!-- 頂部導覽列：分頁切換 -->
+    <div class="nav-tabs no-print">
+        <button class="tab-btn active" onclick="switchTab('match-tab')">📊 比賽計分與輪轉</button>
+        <button class="tab-btn" onclick="switchTab('team-tab')">👥 多球隊與大名單管理</button>
+    </div>
+
+    <!-- ==================== 分頁一：比賽計分與賽前檢錄 ==================== -->
+    <div id="match-tab" class="tab-content active">
+        <div id="pregame-section" class="card">
+            <h2>📋 賽前準備與檢錄設定</h2>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="form-group">
+                    <label>📅 比賽日期</label>
+                    <input type="date" id="match-date">
+                </div>
+                <div class="form-group">
+                    <label>🏆 盃賽/活動名稱</label>
+                    <input type="text" id="match-tournament" placeholder="例: 3S盃排球友誼賽">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="form-group">
+                    <label>選擇我方出賽球隊</label>
+                    <select id="active-team-select" onchange="onTeamChanged()"></select>
+                </div>
+                <div class="form-group">
+                    <label>⚔️ 對手隊伍名稱</label>
+                    <input type="text" id="opponent-team-name" placeholder="例: 機械系排">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>勾選本場登錄的球員 (最多 12 人，目前已選 <span id="selected-count">0</span>/12 人)</label>
+                <div id="roster-checkboxes" class="checkbox-grid"></div>
+            </div>
+
+            <div class="form-group">
+                <label>指定先發 6 人與場上位置 (P1 ~ P6)</label>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;" id="lineup-selects"></div>
+            </div>
+
+            <div class="form-group">
+                <label>本局誰先發球？</label>
+                <select id="initial-serve">
+                    <option value="our">我方先發球</option>
+                    <option value="opponent">對手先發球</option>
+                </select>
+            </div>
+            <button class="btn-primary" onclick="startMatch()">🚀 確認檢錄，開始比賽！</button>
+        </div>
+
+        <!-- 正式計分戰鬥區 -->
+        <div id="in-game-section" style="display: none;">
+            <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <button class="btn-secondary" style="width: auto; padding: 8px 15px;" onclick="backToPregame()">⚙ 回到檢錄/修改陣容</button>
+                <h2 id="current-match-title" style="margin:0;">🔥 比賽進行中</h2>
+                <button class="btn-warning" style="width: auto; padding: 8px 15px;" onclick="window.print()">🖨️ 列印/匯出PDF</button>
+            </div>
+
+            <!-- 列印專用表頭[cite: 3] -->
+            <div class="print-only" style="display:none; text-align:center; margin-bottom:15px; border-bottom:2px solid #000; padding-bottom:10px;">
+                <h2 id="print-header-title" style="margin:0; font-size:1.4rem;">排球比賽得失分紀錄表</h2>
+                <p id="print-header-info" style="margin:5px 0 0 0; font-size:1rem;"></p>
+            </div>
+
+            <!-- 比分看板 -->
+            <div class="scoreboard-panel">
+                <div class="team-score-box">
+                    <div style="font-size: 1.1rem; color: #94a3b8;" id="scoreboard-our-name">我方得分</div>
+                    <div id="our-score" class="score-display">0</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.2rem; font-weight: bold; margin-bottom: 5px;">VS</div>
+                    <div id="serve-status-badge" style="background: #eab308; color: #000; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: bold;">發球權：我方</div>
+                </div>
+                <div class="team-score-box">
+                    <div style="font-size: 1.1rem; color: #94a3b8;" id="scoreboard-opp-name">對手得分</div>
+                    <div id="opponent-score" class="score-display">0</div>
+                </div>
+            </div>
+
+            <!-- 站位圖與換人模式 -->
+            <div class="court-container">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <div class="net-line" style="margin:0; border:none;">⚡ 網口 (Net) ⚡</div>
+                    <button id="sub-mode-btn" class="btn-warning" style="padding: 6px 12px; font-size: 0.85rem;" onclick="toggleSubstituteMode()">🔄 模式：點擊球員計分</button>
+                </div>
+
+                <div class="court-grid">
+                    <div class="player-node" id="node-p4" onclick="handleCourtCardClick(3)"><div class="pos-tag">前左 (P4)</div><div class="player-name" id="disp-p4">-</div></div>
+                    <div class="player-node" id="node-p3" onclick="handleCourtCardClick(2)"><div class="pos-tag">前中 (P3)</div><div class="player-name" id="disp-p3">-</div></div>
+                    <div class="player-node" id="node-p2" onclick="handleCourtCardClick(1)"><div class="pos-tag">前右 (P2)</div><div class="player-name" id="disp-p2">-</div></div>
+                    <div class="player-node" id="node-p5" onclick="handleCourtCardClick(4)"><div class="pos-tag">後左 (P5)</div><div class="player-name" id="disp-p5">-</div></div>
+                    <div class="player-node" id="node-p6" onclick="handleCourtCardClick(5)"><div class="pos-tag">後中 (P6)</div><div class="player-name" id="disp-p6">-</div></div>
+                    <div class="player-node" id="node-p1" onclick="handleCourtCardClick(0)">
+                        <div class="pos-tag">後右 (P1) 🌟</div>
+                        <div class="player-name" id="disp-p1">-</div>
+                        <div class="serve-badge-icon">🏐</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 目前選定操作的球員提示列 -->
+            <div class="card no-print" style="margin-bottom: 20px; background: #eff6ff; border: 2px solid #bfdbfe; text-align: center; padding: 12px;">
+                    <span style="font-size: 1.05rem; font-weight: bold; color: #1e40af;">
+                        🎯 目前操作指定的球員：<span id="selected-active-player" style="color: #2563eb; font-size: 1.2rem;">請點擊上方場上球員選擇</span>
+                    </span>
+            </div>
+
+            <!-- 主分類按鈕控制面板（點擊後跳出細分項目） -->
+            <div class="card no-print" style="margin-bottom: 20px;">
+                <h3 style="margin-top:0; color: #1e293b;">⚡ 點擊主要分類以記錄數據與得失分</h3>
+                <div class="category-grid">
+                    <button class="cat-btn" style="background:#2563eb;" onclick="openDetailModal('發球')">🏐 發球</button>
+                    <button class="cat-btn" style="background:#16a34a;" onclick="openDetailModal('攻擊')">💥 攻擊</button>
+                    <button class="cat-btn" style="background:#d97706;" onclick="openDetailModal('吊球')">✨ 吊球</button>
+                    <button class="cat-btn" style="background:#0891b2;" onclick="openDetailModal('接發')">📥 接發</button>
+                    <button class="cat-btn" style="background:#7c3aed;" onclick="openDetailModal('接扣')">🛡️ 接扣</button>
+                    <button class="cat-btn" style="background:#db2777;" onclick="openDetailModal('接吊')">🧤 接吊</button>
+                    <button class="cat-btn" style="background:#4b5563;" onclick="openDetailModal('二三傳')">🔄 二三傳</button>
+                    <button class="cat-btn" style="background:#ea580c;" onclick="openDetailModal('犯規')">⚠️ 犯規</button>
+                </div>
+
+                <!-- 對方失誤送分專區（不需指定球員） -->
+                <div style="margin-top: 15px; border-top: 1px dashed #cbd5e1; padding-top: 15px;">
+                    <div style="font-size: 0.9rem; font-weight: bold; color: #475569; margin-bottom: 8px;">🎁 對方失誤送分 (我方直接得分)：</div>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
+                        <button class="btn-success" style="padding:8px; font-size:0.9rem;" onclick="scorePoint('our', '對方發球失誤')">對方發球失誤</button>
+                        <button class="btn-success" style="padding:8px; font-size:0.9rem;" onclick="scorePoint('our', '對方二三傳噴')">對方二三傳噴</button>
+                        <button class="btn-success" style="padding:8px; font-size:0.9rem;" onclick="scorePoint('our', '對方攻擊失誤')">對方攻擊失誤</button>
+                        <button class="btn-success" style="padding:8px; font-size:0.9rem;" onclick="scorePoint('our', '對方犯規送分')">對方犯規送分</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 輔助控制列 -->
+            <div class="no-print" style="display: flex; gap: 10px; margin-bottom: 20px; margin-top: 15px;">
+                <button class="btn-warning" style="flex: 1;" onclick="manualRotate()">🔄 手動輪轉一次</button>
+                <button class="btn-warning" style="flex: 1;" onclick="undoLast()">↩️ 復原上一筆</button>
+                <button class="btn-danger" style="flex: 1;" onclick="resetMatch()">🔄 重新開始比賽</button>
+            </div>
+
+            <!-- 流水帳紀錄 -->
+            <div class="card">
+                <h3>📜 比賽流水帳與輪轉紀錄</h3>
+                <div id="log-container" class="log-box"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 分頁二：多球隊與大名單管理 ==================== -->
+    <div id="team-tab" class="tab-content">
+        <h1>👥 多球隊與球員大名單管理</h1>
+
+        <div class="card">
+            <h3>球隊與預設名單操作</h3>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <input type="text" id="new-team-name" placeholder="輸入新球隊名稱 (例如: 我的球隊)" style="flex: 1;">
+                <button class="btn-success" style="width: auto;" onclick="addNewTeam()">建立新球隊</button>
+            </div>
+            <button class="btn-warning" onclick="loadDefaultPresetToCurrentTeam()">📥 載入預設 6 人名單 (球員1~6) 到目前球隊</button>
+        </div>
+
+        <!-- 球隊與球員維護區 -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div style="flex: 1; margin-right: 15px;">
+                    <label>目前檢視/編輯的球隊：</label>
+                    <select id="manage-team-select" onchange="onTeamChanged()"></select>
+                </div>
+                <button class="btn-danger" style="width: auto; height: 42px; margin-top: 22px;" onclick="deleteCurrentTeam()">刪除目前球隊</button>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
+
+            <h3 id="form-title">新增球員到此球隊</h3>
+            <input type="hidden" id="edit-index" value="-1">
+            <div class="form-group">
+                <label>背號 (輸入數字即可) 與姓名</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="number" id="p-num" placeholder="背號 (例: 1)" style="flex: 1;" min="0" max="99">
+                    <input type="text" id="p-name" placeholder="姓名 (例: 王小明)" style="flex: 2;">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>場上位置 (可複選或不填)</label>
+                <div class="checkbox-group-inline">
+                    <label class="checkbox-label"><input type="checkbox" name="p-pos" value="主攻"> 主攻</label>
+                    <label class="checkbox-label"><input type="checkbox" name="p-pos" value="副攻"> 副攻</label>
+                    <label class="checkbox-label"><input type="checkbox" name="p-pos" value="舉球"> 舉球</label>
+                    <label class="checkbox-label"><input type="checkbox" name="p-pos" value="快攻"> 快攻</label>
+                    <label class="checkbox-label"><input type="checkbox" name="p-pos" value="自由"> 自由</label>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button id="save-player-btn" class="btn-primary" style="flex: 2;" onclick="savePlayerToTeam()">確認新增球員</button>
+                <button id="cancel-edit-btn" class="btn-secondary" style="flex: 1; display: none;" onclick="cancelEdit()">取消修改</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>球隊現有球員名單 (<span id="team-player-count">0</span> 人)</h3>
+            <div style="overflow-x: auto;">
+                <table class="team-table">
+                    <thead>
+                    <tr>
+                        <th>背號</th>
+                        <th>姓名</th>
+                        <th>位置</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="team-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- 細分項目彈窗 Modal -->
+<div id="detail-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+    <div style="background:white; padding:25px; border-radius:12px; width:90%; max-width:450px; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
+        <h3 id="modal-category-title" style="margin-top:0; color:#1e293b;">選擇細分項目</h3>
+        <p id="modal-player-desc" style="text-align:center; color:#2563eb; font-weight:bold; font-size:1.05rem; margin-bottom:15px;"></p>
+
+        <div id="modal-buttons-container" style="display:grid; grid-template-columns:1fr; gap:10px;">
+            <!-- 動態塞入細分按鈕 -->
+        </div>
+
+        <button class="btn-secondary" style="width:100%; margin-top:15px;" onclick="closeDetailModal()">取消返回</button>
+    </div>
+</div>
+
+<!-- 換人彈窗 Modal -->
+<div id="sub-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+    <div style="background:white; padding:25px; border-radius:12px; width:90%; max-width:400px; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
+        <h3>🔄 更換場上球員</h3>
+        <p id="sub-modal-desc" style="text-align:center; color:#64748b; font-size:0.9rem;"></p>
+        <div class="form-group">
+            <label>請選擇要替換上場的板凳球員：</label>
+            <select id="sub-target-select" style="padding:10px; font-size:1rem;"></select>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button class="btn-primary" style="flex:1;" onclick="confirmSubstitute()">確認換人</button>
+            <button class="btn-secondary" style="flex:1;" onclick="closeSubstituteModal()">取消</button>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
