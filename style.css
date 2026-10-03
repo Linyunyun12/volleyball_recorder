@@ -6,31 +6,45 @@
     --bg: #f8fafc;
     --card-bg: #ffffff;
 }
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background-color: var(--bg);
     margin: 0;
-    padding: 15px;
+    padding: 10px;
     color: #1e293b;
+    -webkit-text-size-adjust: 100%; /* 防止平板自動放大字體導致跑版 */
 }
-.container { max-width: 950px; margin: 0 auto; }
-h1, h2, h3 { text-align: center; color: #1e293b; }
 
+.container {
+    max-width: 950px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+h1, h2, h3 {
+    text-align: center;
+    color: #1e293b;
+    word-break: break-all;
+}
+
+/* 頂部導覽列：平板自動適應 */
 .nav-tabs {
     display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
+    gap: 8px;
+    margin-bottom: 15px;
     border-bottom: 2px solid #e2e8f0;
-    padding-bottom: 10px;
+    padding-bottom: 8px;
 }
 .tab-btn {
     flex: 1;
-    padding: 12px;
+    padding: 12px 8px;
     background: #e2e8f0;
     color: #475569;
     border: none;
     border-radius: 8px;
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: bold;
     cursor: pointer;
 }
@@ -45,24 +59,26 @@ h1, h2, h3 { text-align: center; color: #1e293b; }
     background: var(--card-bg);
     border: 1px solid #e2e8f0;
     border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 20px;
+    padding: 15px;
+    margin-bottom: 15px;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    box-sizing: border-box;
 }
 
-.form-group { margin-bottom: 15px; }
+.form-group { margin-bottom: 12px; }
 label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem; color: #475569; }
 input, select, textarea {
     width: 100%;
-    padding: 10px;
+    padding: 12px; /* 增大觸控點擊範圍 */
     border: 1px solid #cbd5e1;
     border-radius: 8px;
     font-size: 1rem;
     box-sizing: border-box;
+    background: #fff;
 }
 
 button {
-    padding: 12px 20px;
+    padding: 12px 15px;
     border: none;
     border-radius: 8px;
     font-size: 1rem;
@@ -70,6 +86,7 @@ button {
     cursor: pointer;
     color: white;
     transition: transform 0.1s, opacity 0.2s;
+    box-sizing: border-box;
 }
 button:active { transform: scale(0.98); }
 button:hover { opacity: 0.9; }
@@ -79,27 +96,33 @@ button:hover { opacity: 0.9; }
 .btn-warning { background-color: var(--warning); }
 .btn-secondary { background-color: #64748b; }
 
-/* 主分類按鈕網格排版 */
+/* 主分類按鈕網格：平板直立時改為 2 欄，橫放時 4 欄，避免擠壓 */
 .category-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+@media (min-width: 768px) {
+    .category-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
 }
 .cat-btn {
-    padding: 18px 10px;
-    font-size: 1.1rem;
+    padding: 16px 8px;
+    font-size: 1.05rem;
     font-weight: bold;
     color: white;
     border-radius: 10px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     cursor: pointer;
     text-align: center;
+    word-break: keep-all;
 }
 
 .checkbox-group-inline {
     display: flex;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 10px;
     margin-top: 5px;
 }
 .checkbox-label {
@@ -111,22 +134,28 @@ button:hover { opacity: 0.9; }
     cursor: pointer;
 }
 
+/* 檢錄勾選網格：平板自動調整欄數 */
 .checkbox-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    max-height: 200px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    max-height: 220px;
     overflow-y: auto;
     background: #f1f5f9;
     padding: 10px;
     border-radius: 8px;
+}
+@media (min-width: 768px) {
+    .checkbox-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
 }
 .checkbox-item {
     display: flex;
     align-items: center;
     gap: 8px;
     background: white;
-    padding: 8px;
+    padding: 10px;
     border-radius: 6px;
     border: 1px solid #cbd5e1;
     font-size: 0.95rem;
@@ -140,78 +169,105 @@ button:hover { opacity: 0.9; }
 .team-table th, .team-table td {
     padding: 10px;
     border-bottom: 1px solid #e2e8f0;
+    font-size: 0.95rem;
 }
 .team-table th { background: #f1f5f9; color: #475569; }
 
+/* 視覺化排球場站位圖 */
 .court-container {
     background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
     border-radius: 16px;
-    padding: 20px;
+    padding: 15px;
     color: white;
     box-shadow: inset 0 2px 4px rgba(0,0,0,0.1), 0 10px 15px -3px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
+    margin-bottom: 15px;
+    box-sizing: border-box;
 }
 .net-line {
     border-bottom: 3px dashed rgba(255,255,255,0.6);
     text-align: center;
     font-size: 0.85rem;
     padding-bottom: 5px;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
     letter-spacing: 2px;
     text-transform: uppercase;
 }
 .court-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
+    gap: 8px;
 }
 .player-node {
     background: rgba(255, 255, 255, 0.95);
     color: #1e293b;
-    border-radius: 12px;
-    padding: 12px 8px;
+    border-radius: 10px;
+    padding: 10px 4px;
     text-align: center;
     box-shadow: 0 4px 6px rgba(0,0,0,0.15);
     position: relative;
     cursor: pointer;
+    min-height: 55px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 .player-node.is-server {
     background: #fef08a;
     border: 3px solid #eab308;
-    transform: translateY(-3px);
+    transform: translateY(-2px);
 }
-.pos-tag { font-size: 0.75rem; color: #64748b; font-weight: bold; }
-.player-name { font-size: 1.1rem; font-weight: 800; color: #0f172a; margin: 4px 0; }
+.pos-tag { font-size: 0.7rem; color: #64748b; font-weight: bold; }
+.player-name { font-size: 1rem; font-weight: 800; color: #0f172a; margin: 2px 0; }
 .serve-badge-icon {
     position: absolute;
-    top: -10px;
-    right: -10px;
+    top: -8px;
+    right: -8px;
     background: #eab308;
     color: #fff;
     border-radius: 50%;
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
 }
 
+/* 比分看板 */
 .scoreboard-panel {
     display: flex;
     justify-content: space-around;
     align-items: center;
     background: #1e293b;
     color: #fff;
-    padding: 20px;
+    padding: 15px;
     border-radius: 12px;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
 }
 .team-score-box { text-align: center; }
-.score-display { font-size: 3.5rem; font-weight: bold; line-height: 1; margin-top: 5px; }
+.score-display { font-size: 3rem; font-weight: bold; line-height: 1; margin-top: 5px; }
+
+/* 動作控制面板 */
+.action-panels {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 15px;
+}
+@media (min-width: 768px) {
+    .action-panels {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+.btn-group-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+}
 
 .log-box {
-    max-height: 180px;
+    max-height: 150px;
     overflow-y: auto;
     background: #f1f5f9;
     padding: 10px;
