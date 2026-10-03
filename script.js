@@ -16,6 +16,50 @@ let isSubstituteMode = false;
 let subPosIndex = null;
 
 // 定義各主分類底下的細分選項（對應得分、失誤或犯規項目）
+
+// 📤 匯出所有球隊資料為 JSON 檔案
+function exportTeamsData() {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(teamsData, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+
+    // 檔名自動帶入當下日期時間
+    const dateObj = new Date();
+    const dateStr = `${dateObj.getFullYear()}${String(dateObj.getMonth()+1).padStart(2,'0')}${String(dateObj.getDate()).padStart(2,'0')}`;
+    downloadAnchor.setAttribute("download", `volleyball_teams_${dateStr}.json`);
+
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+}
+
+// 📥 匯入球隊資料檔案 (從平板讀取)
+function importTeamsData(event) {
+    const fileReader = new FileReader();
+    if (event.target.files && event.target.files[0]) {
+        fileReader.readAsText(event.target.files[0], "UTF-8");
+        fileReader.onload = function (e) {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                if (typeof importedData === 'object' && importedData !== null) {
+                    teamsData = importedData;
+                    saveAllData();
+                    updateAllTeamSelects();
+                    renderTeamTable();
+                    renderPregameCheckboxes();
+                    alert('🎉 成功匯入球隊資料！');
+                } else {
+                    alert('檔案格式錯誤，無法識別！');
+                }
+            } catch (error) {
+                alert('解析 JSON 檔案失敗，請確認檔案格式是否正確。');
+            }
+            // 清空 input 讓同一個檔案可以重複觸發
+            event.target.value = '';
+        };
+    }
+}
+
 const categoryDetails = {
     "發球": [
         { label: "🟢 發球得分 (Ace)", type: "score", impact: "our", reason: "發球得分" },

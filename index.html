@@ -165,13 +165,20 @@
     <div id="team-tab" class="tab-content">
         <h1>👥 多球隊與球員大名單管理</h1>
 
+        <!-- 球隊與預設名單操作 (加入匯出/匯入) -->
         <div class="card">
-            <h3>球隊與預設名單操作</h3>
+            <h3>球隊與資料同步操作</h3>
             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                 <input type="text" id="new-team-name" placeholder="輸入新球隊名稱 (例如: 我的球隊)" style="flex: 1;">
                 <button class="btn-success" style="width: auto;" onclick="addNewTeam()">建立新球隊</button>
             </div>
-            <button class="btn-warning" onclick="loadDefaultPresetToCurrentTeam()">📥 載入預設 6 人名單 (球員1~6) 到目前球隊</button>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn-warning" style="flex: 1;" onclick="loadDefaultPresetToCurrentTeam()">📥 載入預設 6 人名單</button>
+                <button class="btn-primary" style="flex: 1;" onclick="exportTeamsData()">📤 匯出所有球隊資料</button>
+                <button class="btn-secondary" style="flex: 1;" onclick="document.getElementById('import-file-input').click()">📥 匯入球隊資料檔案</button>
+                <!-- 隱藏的檔案上傳 input -->
+                <input type="file" id="import-file-input" style="display: none;" accept=".json" onchange="importTeamsData(event)">
+            </div>
         </div>
 
         <!-- 球隊與球員維護區 -->
