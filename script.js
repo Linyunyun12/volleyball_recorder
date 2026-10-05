@@ -1,3 +1,4 @@
+// 預設 6 人球隊名單（球員 1~6）
 const presetSixPlayers = [
     { num: "1", name: "球員1", pos: [] },
     { num: "2", name: "球員2", pos: [] },
@@ -7,8 +8,9 @@ const presetSixPlayers = [
     { num: "6", name: "球員6", pos: [] }
 ];
 
-let teamsData = { "我的球隊": [] };
-let activeTeamName = "我的球隊";
+let teamsData = { "預設球隊": JSON.parse(JSON.stringify(presetSixPlayers)) };
+let activeTeamName = "預設球隊";
+
 let lineup = ["", "", "", "", "", ""];
 let registeredPlayers = [];
 let activePlayerIndex = 0;
@@ -44,9 +46,15 @@ function importTeamsData(event) {
                 if (typeof importedData === 'object' && importedData !== null) {
                     teamsData = importedData;
                     saveAllData();
+
+                    // 【關鍵修正】匯入成功後，必須手動觸發這三個更新畫面與選單的函式！
+                    const keys = Object.keys(teamsData);
+                    if (keys.length > 0) activeTeamName = keys[0];
+
                     updateAllTeamSelects();
                     renderTeamTable();
                     renderPregameCheckboxes();
+
                     alert('🎉 成功匯入球隊資料！');
                 } else {
                     alert('檔案格式錯誤，無法識別！');
@@ -54,7 +62,6 @@ function importTeamsData(event) {
             } catch (error) {
                 alert('解析 JSON 檔案失敗，請確認檔案格式是否正確。');
             }
-            // 清空 input 讓同一個檔案可以重複觸發
             event.target.value = '';
         };
     }
