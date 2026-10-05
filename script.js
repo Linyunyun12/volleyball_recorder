@@ -368,20 +368,38 @@ function updateLineupSelects(activePlayers) {
 }
 
 function startMatch() {
-    const checkedBoxes = document.querySelectorAll('#roster-checkboxes input[type="checkbox"]:checked');
-    if (checkedBoxes.length < 6) { alert('先發陣容需要至少 6 位球員！'); return; }
+    const checkedBoxes = document.querySelectorAll('#roster-cards-container input[type="checkbox"]:checked');
+    if (checkedBoxes.length < 6) {
+        alert('先發陣容需要至少勾選 6 位登錄球員！');
+        return;
+    }
 
+    // 抓取 6 宮格站位上的選單數值
+    const p1 = document.getElementById('sel-p1').value;
+    const p2 = document.getElementById('sel-p2').value;
+    const p3 = document.getElementById('sel-p3').value;
+    const p4 = document.getElementById('sel-p4').value;
+    const p5 = document.getElementById('sel-p5').value;
+    const p6 = document.getElementById('sel-p6').value;
+
+    // 檢查是否有任何一個位置是空值或未指定
+    const currentLineup = [p1, p2, p3, p4, p5, p6];
+    if (currentLineup.some(p => !p || p === '-' || p === '請先勾選球員')) {
+        alert('先發 6 人的場上位置（P1 ~ P6）尚未指派完整，請確認每個格子都有選擇球員！');
+        return;
+    }
+
+    // 儲存賽前表頭資訊
     matchInfo.date = document.getElementById('match-date').value || "未填日期";
     matchInfo.tournament = document.getElementById('match-tournament').value.trim() || "友誼賽";
     matchInfo.opponent = document.getElementById('opponent-team-name').value.trim() || "對手";
 
-    // 抓取先發 6 人陣容 (P1~P6)
-    lineup[0] = document.getElementById('sel-p1').value;
-    lineup[1] = document.getElementById('sel-p2').value;
-    lineup[2] = document.getElementById('sel-p3').value;
-    lineup[3] = document.getElementById('sel-p4').value;
-    lineup[4] = document.getElementById('sel-p5').value;
-    lineup[5] = document.getElementById('sel-p6').value;
+    lineup[0] = p1;
+    lineup[1] = p2;
+    lineup[2] = p3;
+    lineup[3] = p4;
+    lineup[4] = p5;
+    lineup[5] = p6;
 
     hasServe = (document.getElementById('initial-serve').value === 'our');
     ourScore = 0;
@@ -389,6 +407,7 @@ function startMatch() {
     historyLog = [];
     isSubstituteMode = false;
 
+    // 更新介面上的隊與表頭
     document.getElementById('current-match-title').textContent = `🔥 [${matchInfo.tournament}] ${activeTeamName} v.s ${matchInfo.opponent}`;
     document.getElementById('scoreboard-our-name').textContent = `${activeTeamName} 得分`;
     document.getElementById('scoreboard-opp-name').textContent = `${matchInfo.opponent} 得分`;
