@@ -282,3 +282,119 @@ button:hover { opacity: 0.9; }
     body { background: white; padding: 0; }
     .card { box-shadow: none; border: 1px solid #ccc; }
 }
+
+/* 現代化球員登錄方格排版 */
+.roster-grid-modern {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+@media (min-width: 768px) {
+    .roster-grid-modern {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+.roster-card {
+    background: white;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.roster-card:hover {
+    border-color: #2563eb;
+    background: #f8fafc;
+}
+.roster-card input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #2563eb;
+    cursor: pointer;
+}
+.roster-info {
+    display: flex;
+    flex-direction: column;
+}
+.roster-num {
+    font-weight: 800;
+    font-size: 0.95rem;
+    color: #1e293b;
+}
+.roster-name {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+/* 賽前登錄球員方格卡片 (選中時加藍色邊框) */
+.roster-select-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+@media (min-width: 768px) {
+    .roster-select-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+.roster-select-card {
+    background: white;
+    border: 2px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+.roster-select-card.selected {
+    border-color: #2563eb;
+    background: #eff6ff;
+    box-shadow: 0 0 8px rgba(37, 99, 235, 0.3);
+}
+.roster-select-card input[type="checkbox"] {
+    display: none; /* 隱藏原生checkbox，改由整張卡片點擊控制 */
+}
+.roster-card-info {
+    display: flex;
+    flex-direction: column;
+}
+.roster-card-num {
+    font-weight: 800;
+    font-size: 1rem;
+    color: #1e293b;
+}
+.roster-card-name {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+/* 賽前 6 宮格站位節點樣式 */
+.pregame-node {
+    background: rgba(255, 255, 255, 0.95);
+    color: #1e293b;
+    border-radius: 12px;
+    padding: 10px 6px;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+}
+.pregame-select {
+    width: 100%;
+    padding: 6px;
+    margin-top: 4px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-weight: bold;
+    background: white;
+    text-align: center;
+}

@@ -20,47 +20,85 @@
         <div id="pregame-section" class="card">
             <h2>📋 賽前準備與檢錄設定</h2>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                <div class="form-group">
-                    <label>📅 比賽日期</label>
-                    <input type="date" id="match-date">
+            <!-- 基本資訊 -->
+            <div style="background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h3 style="margin-top:0; font-size:1rem; color:#334155; text-align:left;">1. 比賽基本資訊</h3>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 10px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>📅 日期</label>
+                        <input type="date" id="match-date">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>🏆 盃賽/活動名稱</label>
+                        <input type="text" id="match-tournament" placeholder="例: 3S盃排球友誼賽">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>🏆 盃賽/活動名稱</label>
-                    <input type="text" id="match-tournament" placeholder="例: 3S盃排球友誼賽">
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                    <div class="form-group" style="margin:0;">
+                        <label>我方球隊</label>
+                        <select id="active-team-select" onchange="onTeamChanged()"></select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>⚔️️ 對手隊伍 (v.s)</label>
+                        <input type="text" id="opponent-team-name" placeholder="例: 機械系排">
+                    </div>
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                <div class="form-group">
-                    <label>選擇我方出賽球隊</label>
-                    <select id="active-team-select" onchange="onTeamChanged()"></select>
+            <!-- 區塊二：方格化球員檢錄 (點擊卡片選定) -->
+            <div style="background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h3 style="margin-top:0; font-size:1.0rem; color:#334155; text-align:left;">
+                    2. 登錄球員檢錄 (最多 12 人，已選 <span id="selected-count" style="color:#2563eb;">0</span>/12 人)
+                </h3>
+                <div id="roster-cards-container" class="roster-select-grid"></div>
+            </div>
+
+            <!-- 區塊三：卡通化 6 宮格站位指定先發 -->
+            <div style="background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <h3 style="margin-top:0; font-size:1.0rem; color:#334155; text-align:left;">3. 指定先發 6 人與站位 (點擊格子指派球員)</h3>
+
+                <div class="court-container" style="margin-bottom: 15px;">
+                    <div class="net-line">⚡ 網口 (Net) ⚡ - 前排網前</div>
+                    <div class="court-grid">
+                        <div class="pregame-node">
+                            <div class="pos-tag">前左 (P4)</div>
+                            <select id="sel-p4" class="pregame-select" onchange="updatePregameVisual()"></select>
+                        </div>
+                        <div class="pregame-node">
+                            <div class="pos-tag">前中 (P3)</div>
+                            <select id="sel-p3" class="pregame-select" onchange="updatePregameVisual()"></select>
+                        </div>
+                        <div class="pregame-node">
+                            <div class="pos-tag">前右 (P2)</div>
+                            <select id="sel-p2" class="pregame-select" onchange="updatePregameVisual()"></select>
+                        </div>
+                        <div class="pregame-node">
+                            <div class="pos-tag">後左 (P5)</div>
+                            <select id="sel-p5" class="pregame-select" onchange="updatePregameVisual()"></select>
+                        </div>
+                        <div class="pregame-node">
+                            <div class="pos-tag">後中 (P6)</div>
+                            <select id="sel-p6" class="pregame-select" onchange="updatePregameVisual()"></select>
+                        </div>
+                        <div class="pregame-node is-server">
+                            <div class="pos-tag">後右 (P1) 🌟 發球位</div>
+                            <select id="sel-p1" class="pregame-select" onchange="updatePregameVisual()"></select>
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>⚔️ 對手隊伍名稱</label>
-                    <input type="text" id="opponent-team-name" placeholder="例: 機械系排">
+
+                <div class="form-group" style="margin:0;">
+                    <label>本局誰先發球？</label>
+                    <select id="initial-serve">
+                        <option value="our">我方先發球</option>
+                        <option value="opponent">對手先發球</option>
+                    </select>
                 </div>
             </div>
 
-            <div class="form-group">
-                <label>勾選本場登錄的球員 (最多 12 人，目前已選 <span id="selected-count">0</span>/12 人)</label>
-                <div id="roster-checkboxes" class="checkbox-grid"></div>
-            </div>
-
-            <div class="form-group">
-                <label>指定先發 6 人與場上位置 (P1 ~ P6)</label>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;" id="lineup-selects"></div>
-            </div>
-
-            <div class="form-group">
-                <label>本局誰先發球？</label>
-                <select id="initial-serve">
-                    <option value="our">我方先發球</option>
-                    <option value="opponent">對手先發球</option>
-                </select>
-            </div>
-            <button class="btn-primary" onclick="startMatch()">🚀 確認檢錄，開始比賽！</button>
+            <button class="btn-primary" style="font-size: 1.1rem; padding: 14px;" onclick="startMatch()">🚀 確認檢錄，開始比賽！</button>
         </div>
+
 
         <!-- 正式計分戰鬥區 -->
         <div id="in-game-section" style="display: none;">

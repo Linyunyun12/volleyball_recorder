@@ -285,36 +285,62 @@ function removePlayer(idx) {
     }
 }
 
+// 渲染賽前方格化登錄球員清單（點擊整張卡片切換選中狀態）
 function renderPregameCheckboxes() {
-    const container = document.getElementById('roster-checkboxes');
+    const container = document.getElementById('roster-cards-container');
     container.innerHTML = '';
 
     const players = teamsData[activeTeamName] || [];
     players.forEach((p, idx) => {
-        let div = document.createElement('div');
-        div.className = 'checkbox-item';
-        let isChecked = idx < 12 ? 'checked' : '';
+        let card = document.createElement('div');
+        let isChecked = idx < 12; // 預設前 12 人選中
+        card.className = `roster-select-card ${isChecked ? 'selected' : ''}`;
+        card.id = `roster-card-${idx}`;
+
         let posStr = (p.pos && p.pos.length > 0) ? `(${p.pos.join('/')})` : '';
-        div.innerHTML = `
-            <input type="checkbox" value="#${p.num} ${p.name}" ${isChecked} onchange="checkMaxRosterLimit(this)">
-            <span><b>#${p.num}</b> ${p.name} ${posStr}</span>
+        card.innerHTML = `
+            <input type="checkbox" id="chk-${idx}" value="#${p.num} ${p.name}" ${isChecked ? 'checked' : ''} onchange="handleRosterCardChange(${idx})">
+            <div class="roster-card-info">
+                <span class="roster-card-num">#${p.num} ${p.name}</span>
+                <span class="roster-card-name">${posStr}</span>
+            </div>
         `;
-        container.appendChild(div);
+
+        // 點擊卡片即可切換勾選與邊框狀態
+        card.onclick = function(e) {
+            if (e.target.tagName !== 'INPUT') {
+                const chk = document.getElementById(`chk-${idx}`);
+                chk.checked = !chk.checked;
+                handleRosterCardChange(idx);
+            }
+        };
+
+        container.appendChild(card);
     });
     updateSelectedCount();
 }
 
-function checkMaxRosterLimit(checkbox) {
-    const checkedBoxes = document.querySelectorAll('#roster-checkboxes input[type="checkbox"]:checked');
+function handleRosterCardChange(idx) {
+    const chk = document.getElementById(`chk-${idx}`);
+    const card = document.getElementById(`roster-card-${idx}`);
+
+    const checkedBoxes = document.querySelectorAll('#roster-cards-container input[type="checkbox"]:checked');
     if (checkedBoxes.length > 12) {
         alert('正式比賽檢錄登錄最多只能選擇 12 位球員！');
-        checkbox.checked = false;
+        chk.checked = false;
+        return;
+    }
+
+    if (chk.checked) {
+        card.classList.add('selected');
+    } else {
+        card.classList.remove('selected');
     }
     updateSelectedCount();
 }
 
 function updateSelectedCount() {
-    const checkedBoxes = document.querySelectorAll('#roster-checkboxes input[type="checkbox"]:checked');
+    const checkedBoxes = document.querySelectorAll('#roster-cards-container input[type="checkbox"]:checked');
     document.getElementById('selected-count').textContent = checkedBoxes.length;
 
     registeredPlayers = Array.from(checkedBoxes).map(cb => cb.value);
@@ -322,20 +348,16 @@ function updateSelectedCount() {
 }
 
 function updateLineupSelects(activePlayers) {
-    const container = document.getElementById('lineup-selects');
-    container.innerHTML = '';
-    const posNames = ["P1 (發球)", "P2 (前右)", "P3 (前中)", "P4 (前左)", "P5 (後左)", "P6 (後中)"];
+    const posIds = ["sel-p4", "sel-p3", "sel-p2", "sel-p5", "sel-p6", "sel-p1"];
 
-    for (let i = 0; i < 6; i++) {
-        let div = document.createElement('div');
-        div.innerHTML = `
-            <label>${posNames[i]}</label>
-            <select id="sel-p${i+1}">
-                ${activePlayers.length > 0 ? activePlayers.map((p, idx) => `<option value="${p}" ${idx === i ? 'selected' : ''}>${p}</option>`).join('') : '<option value="-">請先勾選球員</option>'}
-            </select>
-        `;
-        container.appendChild(div);
-    }
+    posIds.forEach((id, idx) => {
+        const select = document.getElementById(id);
+        if (select) {
+            select.innerHTML = activePlayers.length > 0
+                ? activePlayers.map((p, pIdx) => `<option value="${p}" ${pIdx === idx ? 'selected' : ''}>${p}</option>`).join('')
+                : '<option value="-">請先勾選球員</option>';
+        }
+    });
 }
 
 function startMatch() {
@@ -346,6 +368,7 @@ function startMatch() {
     matchInfo.tournament = document.getElementById('match-tournament').value.trim() || "友誼賽";
     matchInfo.opponent = document.getElementById('opponent-team-name').value.trim() || "對手";
 
+    // 抓取先發 6 人陣容 (P1~P6)
     lineup[0] = document.getElementById('sel-p1').value;
     lineup[1] = document.getElementById('sel-p2').value;
     lineup[2] = document.getElementById('sel-p3').value;
