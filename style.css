@@ -13,7 +13,7 @@ body {
     margin: 0;
     padding: 10px;
     color: #1e293b;
-    -webkit-text-size-adjust: 100%; /* 防止平板自動放大字體導致跑版 */
+    -webkit-text-size-adjust: 100%;
 }
 
 .container {
@@ -23,13 +23,8 @@ body {
     box-sizing: border-box;
 }
 
-h1, h2, h3 {
-    text-align: center;
-    color: #1e293b;
-    word-break: break-all;
-}
+h1, h2, h3 { text-align: center; color: #1e293b; word-break: break-all; }
 
-/* 頂部導覽列：平板自動適應 */
 .nav-tabs {
     display: flex;
     gap: 8px;
@@ -69,7 +64,7 @@ h1, h2, h3 {
 label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem; color: #475569; }
 input, select, textarea {
     width: 100%;
-    padding: 12px; /* 增大觸控點擊範圍 */
+    padding: 12px;
     border: 1px solid #cbd5e1;
     border-radius: 8px;
     font-size: 1rem;
@@ -96,16 +91,13 @@ button:hover { opacity: 0.9; }
 .btn-warning { background-color: var(--warning); }
 .btn-secondary { background-color: #64748b; }
 
-/* 主分類按鈕網格：平板直立時改為 2 欄，橫放時 4 欄，避免擠壓 */
 .category-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
 }
 @media (min-width: 768px) {
-    .category-grid {
-        grid-template-columns: repeat(4, 1fr);
-    }
+    .category-grid { grid-template-columns: repeat(4, 1fr); }
 }
 .cat-btn {
     padding: 16px 8px;
@@ -116,7 +108,6 @@ button:hover { opacity: 0.9; }
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     cursor: pointer;
     text-align: center;
-    word-break: keep-all;
 }
 
 .checkbox-group-inline {
@@ -134,32 +125,62 @@ button:hover { opacity: 0.9; }
     cursor: pointer;
 }
 
-/* 檢錄勾選網格：平板自動調整欄數 */
-.checkbox-grid {
+.roster-select-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    gap: 10px;
     max-height: 220px;
     overflow-y: auto;
-    background: #f1f5f9;
-    padding: 10px;
-    border-radius: 8px;
 }
 @media (min-width: 768px) {
-    .checkbox-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
+    .roster-select-grid { grid-template-columns: repeat(4, 1fr); }
 }
-.checkbox-item {
+.roster-select-card {
+    background: white;
+    border: 2px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 10px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    background: white;
-    padding: 10px;
-    border-radius: 6px;
-    border: 1px solid #cbd5e1;
-    font-size: 0.95rem;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
 }
+.roster-select-card.selected {
+    border-color: #2563eb;
+    background: #eff6ff;
+    box-shadow: 0 0 8px rgba(37, 99, 235, 0.3);
+}
+.roster-select-card.disabled {
+    background: #e2e8f0;
+    border-color: #cbd5e1;
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.roster-select-card.disabled .roster-card-num,
+.roster-select-card.disabled .roster-card-name {
+    color: #94a3b8;
+    text-decoration: line-through;
+}
+
+.roster-select-card input[type="checkbox"] { display: none; }
+.roster-card-info { display: flex; flex-direction: column; }
+.roster-card-num { font-weight: 800; font-size: 1rem; color: #1e293b; }
+.roster-card-name { font-size: 0.85rem; color: #64748b; }
+
+/* 狀態徽章樣式 */
+.status-badge {
+    font-size: 0.7rem;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-weight: bold;
+    display: inline-block;
+}
+.status-green { background: #dcfce7; color: #16a34a; }
+.status-yellow { background: #fef9c3; color: #ca8a04; }
+.status-red { background: #fee2e2; color: #dc2626; }
+.status-injury { background: #f3e8ff; color: #9333ea; }
 
 .team-table {
     width: 100%;
@@ -173,7 +194,6 @@ button:hover { opacity: 0.9; }
 }
 .team-table th { background: #f1f5f9; color: #475569; }
 
-/* 視覺化排球場站位圖 */
 .court-container {
     background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
     border-radius: 16px;
@@ -233,152 +253,6 @@ button:hover { opacity: 0.9; }
     font-size: 0.8rem;
 }
 
-/* 比分看板 */
-.scoreboard-panel {
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    background: #1e293b;
-    color: #fff;
-    padding: 15px;
-    border-radius: 12px;
-    margin-bottom: 15px;
-}
-.team-score-box { text-align: center; }
-.score-display { font-size: 3rem; font-weight: bold; line-height: 1; margin-top: 5px; }
-
-/* 動作控制面板 */
-.action-panels {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
-    margin-bottom: 15px;
-}
-@media (min-width: 768px) {
-    .action-panels {
-        grid-template-columns: 1fr 1fr;
-    }
-}
-.btn-group-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-    margin-top: 8px;
-}
-
-.log-box {
-    max-height: 150px;
-    overflow-y: auto;
-    background: #f1f5f9;
-    padding: 10px;
-    border-radius: 8px;
-    font-size: 0.9rem;
-}
-.log-item { margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
-
-@media print {
-    .no-print { display: none !important; }
-    .print-only { display: block !important; }
-    body { background: white; padding: 0; }
-    .card { box-shadow: none; border: 1px solid #ccc; }
-}
-
-/* 現代化球員登錄方格排版 */
-.roster-grid-modern {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-    max-height: 220px;
-    overflow-y: auto;
-}
-@media (min-width: 768px) {
-    .roster-grid-modern {
-        grid-template-columns: repeat(4, 1fr);
-    }
-}
-.roster-card {
-    background: white;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    padding: 8px 10px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-.roster-card:hover {
-    border-color: #2563eb;
-    background: #f8fafc;
-}
-.roster-card input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: #2563eb;
-    cursor: pointer;
-}
-.roster-info {
-    display: flex;
-    flex-direction: column;
-}
-.roster-num {
-    font-weight: 800;
-    font-size: 0.95rem;
-    color: #1e293b;
-}
-.roster-name {
-    font-size: 0.85rem;
-    color: #64748b;
-}
-
-/* 賽前登錄球員方格卡片 (選中時加藍色邊框) */
-.roster-select-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    max-height: 220px;
-    overflow-y: auto;
-}
-@media (min-width: 768px) {
-    .roster-select-grid {
-        grid-template-columns: repeat(4, 1fr);
-    }
-}
-.roster-select-card {
-    background: white;
-    border: 2px solid #cbd5e1;
-    border-radius: 10px;
-    padding: 10px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-sizing: border-box;
-}
-.roster-select-card.selected {
-    border-color: #2563eb;
-    background: #eff6ff;
-    box-shadow: 0 0 8px rgba(37, 99, 235, 0.3);
-}
-.roster-select-card input[type="checkbox"] {
-    display: none; /* 隱藏原生checkbox，改由整張卡片點擊控制 */
-}
-.roster-card-info {
-    display: flex;
-    flex-direction: column;
-}
-.roster-card-num {
-    font-weight: 800;
-    font-size: 1rem;
-    color: #1e293b;
-}
-.roster-card-name {
-    font-size: 0.85rem;
-    color: #64748b;
-}
-
-/* 賽前 6 宮格站位節點樣式 */
 .pregame-node {
     background: rgba(255, 255, 255, 0.95);
     color: #1e293b;
@@ -397,4 +271,52 @@ button:hover { opacity: 0.9; }
     font-weight: bold;
     background: white;
     text-align: center;
+}
+
+.scoreboard-panel {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    background: #1e293b;
+    color: #fff;
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 15px;
+}
+.team-score-box { text-align: center; }
+.score-display { font-size: 3rem; font-weight: bold; line-height: 1; margin-top: 5px; }
+
+.log-box {
+    max-height: 150px;
+    overflow-y: auto;
+    background: #f1f5f9;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+.log-item { margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+
+.paper-matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+    font-size: 0.85rem;
+}
+.paper-matrix-table th, .paper-matrix-table td {
+    border: 1px solid #1e293b;
+    padding: 6px 4px;
+    text-align: center;
+}
+.paper-matrix-table th {
+    background-color: #f1f5f9;
+    font-weight: bold;
+}
+
+@media print {
+    @page { size: A4 landscape; margin: 10mm; }
+    .no-print { display: none !important; }
+    .print-only { display: block !important; }
+    body { background: white; padding: 0; font-size: 11pt; }
+    .card { box-shadow: none; border: 1px solid #000; padding: 10px; margin-bottom: 10px; }
+    .paper-matrix-table th, .paper-matrix-table td { border: 1px solid #000; }
 }
