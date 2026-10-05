@@ -785,8 +785,10 @@ function openSummaryModal() {
     }
 
     let html = `
-        <div style="margin-bottom:15px; font-weight:bold; font-size:1.05rem;">
-            📅 日期：${matchInfo.date} &nbsp;|&nbsp; 盃賽：${matchInfo.tournament} &nbsp;|&nbsp; 對戰：${activeTeamName} v.s ${matchInfo.opponent}
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#f1f5f9; padding:10px 15px; border-radius:8px; margin-bottom:15px; font-weight:bold; font-size:0.95rem;">
+            <div>📅 日期：${matchInfo.date}</div>
+            <div>🏆 比賽：${matchInfo.tournament}</div>
+            <div>⚔️ 對戰：${activeTeamName} v.s ${matchInfo.opponent}</div>
         </div>
         <div style="overflow-x:auto;">
             <table class="paper-matrix-table">
