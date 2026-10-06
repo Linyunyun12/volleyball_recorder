@@ -29,7 +29,7 @@ let matchSetWinners = {};
 // 💡 恢復「其他失誤」為需選定球員的失誤項目，直接讓對方得分
 const categoryDetails = {
     "發球": [
-        { label: "⚪ 發球次數", type: "attempt", impact: "none", reason: "發球次數", statKey: "serveAttempts" },
+        { label: "⚪ 一般發球 (未得失分)", type: "attempt", impact: "none", reason: "發球次數", statKey: "serveAttempts" },
         { label: "🟢 發球得分 (Ace)", type: "score", impact: "our", reason: "發球得分", statKey: "serveAce" },
         { label: "🔴 發球失誤", type: "error", impact: "opponent", reason: "發球失誤", statKey: "serveError" }
     ],
@@ -489,8 +489,7 @@ function closeTimeoutModal() {
     document.getElementById('timeout-modal').style.display = 'none';
 }
 
-function confirmTimeout() {
-    const requester = document.getElementById('timeout-requester').value;
+function confirmTimeout(requester) {
     const currentData = matchSets[currentSet];
 
     let logText = `[${currentData.ourScore}:${currentData.opponentScore}] ⏸️ 【暫停記錄】由 【${requester}】 提出暫停 (比分 ${currentData.ourScore}:${currentData.opponentScore})`;
@@ -729,10 +728,12 @@ function recordDetailedEvent(impactTeam, category, reason, statKey) {
     const currentPlayer = currentData.lineup[activePlayerIndex];
     let rotatedThisPoint = false;
 
-    if (currentData.playerStats[currentPlayer]) {
-        if (statKey) {
-            currentData.playerStats[currentPlayer][statKey]++;
-        }
+    const statsApplied = [];
+    if (currentData.playerStats[currentPlayer] && statKey) {
+        statsApplied.push(statKey);
+        // 發球得分 / 發球失誤 同時計入發球次數
+        if (statKey === 'serveAce' || statKey === 'serveError') statsApplied.push('serveAttempts');
+        statsApplied.forEach(k => { currentData.playerStats[currentPlayer][k]++; });
     }
 
     if (impactTeam === 'our') {
@@ -750,7 +751,7 @@ function recordDetailedEvent(impactTeam, category, reason, statKey) {
     let logText = `[${currentData.ourScore}:${currentData.opponentScore}] ${impactTeam === 'our' ? '🟢 我方得分' : (impactTeam === 'opponent' ? '🔴 對手得分' : '⚪ 記錄次數')} - [${currentPlayer}] ${category}：${reason}`;
     if (rotatedThisPoint) logText += " ➔ 【順時針輪轉 🔄】";
 
-    currentData.historyLog.push({ team: impactTeam, reason: `${category}-${reason}`, ourScore: currentData.ourScore, opponentScore: currentData.opponentScore, lineup: [...currentData.lineup], hasServe: currentData.hasServe, text: logText });
+    currentData.historyLog.push({ statsApplied: statsApplied.map(k => ({ player: currentPlayer, key: k })), team: impactTeam, reason: `${category}-${reason}`, ourScore: currentData.ourScore, opponentScore: currentData.opponentScore, lineup: [...currentData.lineup], hasServe: currentData.hasServe, text: logText });
     updateUI();
     checkSetWinCondition();
 }
@@ -917,7 +918,12 @@ function undoLast() {
         alert('目前沒有可以恢復的上一筆紀錄！');
         return;
     }
-    currentData.historyLog.pop();
+    const removed = currentData.historyLog.pop();
+    if (removed && removed.statsApplied) {
+        removed.statsApplied.forEach(s => {
+            if (currentData.playerStats[s.player]) currentData.playerStats[s.player][s.key]--;
+        });
+    }
     if (currentData.historyLog.length > 0) {
         const prev = currentData.historyLog[currentData.historyLog.length - 1];
         currentData.ourScore = prev.ourScore;
@@ -1061,7 +1067,7 @@ function generateReportHTML() {
     let statsToRender = {};
     let setOurScore = 0;
     let setOppScore = 0;
-    let opponentErrors = { serve: 0, attack: 0, foul: 0 };
+    let opponentErrors = { serve: 0, attack: 0, foul: 0, other: 0 };
     let reportPlayers = [];
 
     if (typeof currentSummaryType === 'number') {
@@ -1075,6 +1081,7 @@ function generateReportHTML() {
                 if (item.reason === '對方發球失誤') opponentErrors.serve++;
                 else if (item.reason === '對方攻擊失誤') opponentErrors.attack++;
                 else if (item.reason === '對方犯規送分') opponentErrors.foul++;
+                else if (item.reason === '對方其他失誤') opponentErrors.other++;
             }
         });
     } else {
@@ -1103,6 +1110,7 @@ function generateReportHTML() {
                     if (item.reason === '對方發球失誤') opponentErrors.serve++;
                     else if (item.reason === '對方攻擊失誤') opponentErrors.attack++;
                     else if (item.reason === '對方犯規送分') opponentErrors.foul++;
+                    else if (item.reason === '對方其他失誤') opponentErrors.other++;
                 }
             });
         }
@@ -1203,14 +1211,15 @@ function generateReportHTML() {
 
             <table class="paper-matrix-table" style="table-layout: auto;">
                 <thead>
-                    <tr><th colspan="3">對方失誤</th></tr>
-                    <tr><th>發球失誤</th><th>攻擊失誤</th><th>犯規</th></tr>
+                    <tr><th colspan="4">對方失誤</th></tr>
+                    <tr><th>發球失誤</th><th>攻擊失誤</th><th>犯規</th><th>其他失誤</th></tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td><b>${opponentErrors.serve}</b></td>
                         <td><b>${opponentErrors.attack}</b></td>
                         <td><b>${opponentErrors.foxl || opponentErrors.foul}</b></td>
+                        <td><b>${opponentErrors.other}</b></td>
                     </tr>
                 </tbody>
             </table>
@@ -1278,3 +1287,50 @@ function importTeamsData(event) {
         };
     }
 }
+
+// ===== 得失分按鈕：直接列在版面上（犯規除外，仍用彈窗） =====
+function recordInline(category, idx) {
+    const d = matchSets[currentSet];
+    if (d.isFinished) { alert('此局已結束，無法記錄數據！'); return; }
+    const p = d.lineup[activePlayerIndex];
+    if (!p || p === '-') { alert('請先在上方點擊選擇一位場上球員！'); return; }
+    const item = categoryDetails[category][idx];
+    recordDetailedEvent(item.impact, category, item.reason, item.statKey);
+}
+
+function renderScoringGroups() {
+    const box = document.getElementById('scoring-groups');
+    if (!box) return;
+    box.innerHTML = '';
+    const icons = { "發球": "🏐", "攻擊": "💥", "吊球": "✨", "攔網": "🧱", "防守": "🛡️" };
+    const makeRow = (title) => {
+        const row = document.createElement('div');
+        row.className = 'score-group';
+        row.innerHTML = `<div class="score-group-title">${title}</div>`;
+        const btns = document.createElement('div');
+        btns.className = 'score-group-btns';
+        row.appendChild(btns);
+        box.appendChild(row);
+        return btns;
+    };
+    const makeBtn = (text, cls, fn) => {
+        const b = document.createElement('button');
+        b.textContent = text;
+        b.className = 'score-btn ' + cls;
+        b.onclick = fn;
+        return b;
+    };
+    const cls = (item) => item.impact === 'our' ? 'is-gain' : item.impact === 'opponent' ? 'is-loss' : 'is-neutral';
+    const strip = (label) => label.replace(/^[^\s]+\s/, '');
+
+    Object.keys(categoryDetails).filter(c => c !== "犯規" && c !== "其他失誤").forEach(cat => {
+        const btns = makeRow(`${icons[cat] || ''} ${cat}`);
+        categoryDetails[cat].forEach((item, i) => btns.appendChild(makeBtn(strip(item.label), cls(item), () => recordInline(cat, i))));
+    });
+
+    // 其他失誤 與 犯規 並列
+    const last = makeRow('⚠️ 失誤');
+    categoryDetails["其他失誤"].forEach((item, i) => last.appendChild(makeBtn('其他失誤', cls(item), () => recordInline("其他失誤", i))));
+    last.appendChild(makeBtn('犯規…', 'is-foul', () => openDetailModal('犯規')));
+}
+renderScoringGroups();

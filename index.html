@@ -136,7 +136,10 @@
             <div class="court-container">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <div class="net-line" style="margin:0; border:none;">⚡ 網口 (Net) ⚡</div>
-                    <button id="sub-mode-btn" class="btn-warning" style="padding: 6px 12px; font-size: 0.85rem;" onclick="toggleSubstituteMode()">🔄 模式：點擊球員計分</button>
+                    <div class="mode-actions">
+                        <button id="timeout-btn" class="btn-secondary" onclick="openTimeoutModal()">⏸️ 暫停</button>
+                        <button id="sub-mode-btn" class="btn-warning" style="padding: 6px 12px; font-size: 0.85rem;" onclick="toggleSubstituteMode()">🔄 模式：點擊球員計分</button>
+                    </div>
                 </div>
 
                 <div class="court-grid">
@@ -165,32 +168,17 @@
 
                 <!-- 現代化平板舒適大按鈕控制面板 -->
                 <div class="card no-print" style="margin-bottom: 20px;">
-                    <h3 style="margin-top:0; color: #1e293b; margin-bottom: 12px;">⚡ 點擊主要分類以記錄數據與得失分</h3>
+                    <h3 style="margin-top:0; color: #1e293b; margin-bottom: 12px;">⚡ 記錄球員數據與得失分</h3>
 
-                    <div style="margin-bottom: 12px;">
-                        <button class="cat-btn" style="background: #7c3aed; width: 100%; padding: 14px;" onclick="openTimeoutModal()">⏸️ 請求暫停 (記錄當下比分與提出方)</button>
-                    </div>
-
-                    <div class="category-grid" style="grid-template-columns: repeat(3, 1fr); gap: 12px;">
-                        <button class="cat-btn" style="background:#2563eb;" onclick="openDetailModal('發球')">🏐 發球</button>
-                        <button class="cat-btn" style="background:#16a34a;" onclick="openDetailModal('攻擊')">💥 攻擊</button>
-                        <button class="cat-btn" style="background:#d97706;" onclick="openDetailModal('吊球')">✨ 吊球</button>
-                        <button class="cat-btn" style="background:#0284c7;" onclick="openDetailModal('攔網')">🧱 攔網</button>
-                        <button class="cat-btn" style="background:#0891b2;" onclick="openDetailModal('防守')">🛡️ 防守</button>
-                        <button class="cat-btn" style="background:#4b5563;" onclick="openDetailModal('其他失誤')">⚠️ 其他失誤</button>
-                    </div>
-
-                    <div style="margin-top: 12px;">
-                        <button class="cat-btn" style="background:#ea580c; width:100%; padding: 14px;" onclick="openDetailModal('犯規')">⚠️ 犯規 (持球/二次/觸網/越界)</button>
-                    </div>
-
-                    <div style="margin-top: 15px; border-top: 1px dashed #cbd5e1; padding-top: 15px;">
-                        <div style="font-size: 0.9rem; font-weight: bold; color: #475569; margin-bottom: 8px;">🎁 對方失誤送分 (我方直接得分)：</div>
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
-                            <button class="btn-success" style="padding:10px; font-size:0.9rem;" onclick="scorePoint('our', '對方發球失誤')">對方發球失誤</button>
-                            <button class="btn-success" style="padding:10px; font-size:0.9rem;" onclick="scorePoint('our', '對方攻擊失誤')">對方攻擊失誤</button>
-                            <button class="btn-success" style="padding:10px; font-size:0.9rem;" onclick="scorePoint('our', '對方犯規送分')">對方犯規送分</button>
-                        </div>
+                    <div class="scoring-layout">
+                        <div id="scoring-groups"></div>
+                        <aside class="opp-gifts">
+                            <div class="opp-gifts-title">🎁 對方失誤送分</div>
+                            <button class="score-btn is-gain" onclick="scorePoint('our', '對方發球失誤')">對方發球失誤</button>
+                            <button class="score-btn is-gain" onclick="scorePoint('our', '對方攻擊失誤')">對方攻擊失誤</button>
+                            <button class="score-btn is-gain" onclick="scorePoint('our', '對方犯規送分')">對方犯規送分</button>
+                            <button class="score-btn is-gain" onclick="scorePoint('our', '對方其他失誤')">對方其他失誤</button>
+                        </aside>
                     </div>
                 </div>
             </div>
@@ -352,17 +340,11 @@
     <div style="background:white; padding:25px; border-radius:12px; width:90%; max-width:400px; box-shadow:0 4px 16px rgba(0,0,0,0.3); text-align:center;">
         <h3 style="margin-top:0; color:#1e293b;">⏸️ 記錄暫停</h3>
         <p id="timeout-score-desc" style="font-size: 1.1rem; font-weight: bold; color: #2563eb; margin: 10px 0;"></p>
-        <div class="form-group" style="text-align:left; margin-top: 15px;">
-            <label>是由哪一方提出暫停？</label>
-            <select id="timeout-requester" style="padding:10px; font-size:1rem;">
-                <option value="我方">我方提出暫停</option>
-                <option value="對手">對手提出暫停</option>
-            </select>
+        <div class="timeout-choices">
+            <button class="btn-primary" onclick="confirmTimeout('我方')">我方暫停</button>
+            <button class="btn-danger" onclick="confirmTimeout('對手')">對方暫停</button>
         </div>
-        <div style="display:flex; gap:10px; margin-top:20px;">
-            <button class="btn-primary" style="flex:1;" onclick="confirmTimeout()">確認記錄</button>
-            <button class="btn-secondary" style="flex:1;" onclick="closeTimeoutModal()">取消</button>
-        </div>
+        <button class="btn-secondary" style="width:100%; margin-top:12px;" onclick="closeTimeoutModal()">取消</button>
     </div>
 </div>
 
