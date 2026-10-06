@@ -75,10 +75,9 @@
                 <h3 style="margin-top:0; font-size:1.0rem; color:#334155; text-align:left;">3. 指定先發站位</h3>
 
                 <div class="rotate-bar">
-                    <button class="btn-secondary" onclick="rotatePregameLineup(-1)">↺ 逆時針輪轉</button>
-                    <button class="btn-primary" onclick="rotatePregameLineup(1)">↻ 順時針輪轉</button>
+                    <button class="btn-primary" onclick="rotatePregameLineup()">↻ 順時針輪轉一次</button>
                 </div>
-                <div class="rotate-hint">輪轉後，後右 (P1) 的球員即為本局開場發球員</div>
+                <div class="rotate-hint">每按一次，全隊順時針轉一格；後右 (P1) 的球員即為開場發球員</div>
 
                 <div class="court-container" style="margin-bottom: 15px;">
                     <div class="net-line" style="text-align:center;"> </div>
@@ -393,8 +392,7 @@
             <div style="font-weight:bold; color:#334155; margin-bottom:4px; font-size:0.95rem;">下一局先發站位調整：</div>
             <div class="rotate-hint" style="margin-bottom:8px;">預設為賽前設定的先發站位，可用輪轉鍵調整</div>
             <div class="rotate-bar">
-                <button class="btn-secondary" onclick="rotateNextLineup(-1)">↺ 逆時針輪轉</button>
-                <button class="btn-primary" onclick="rotateNextLineup(1)">↻ 順時針輪轉</button>
+                <button class="btn-primary" onclick="rotateNextLineup()">↻ 順時針輪轉一次</button>
                 <button class="btn-warning" onclick="resetNextLineupToStart()">還原賽前站位</button>
             </div>
 

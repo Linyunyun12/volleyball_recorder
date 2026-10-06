@@ -625,3 +625,7 @@ button:disabled { cursor: not-allowed; }
 .rotate-bar { display: flex; gap: 8px; margin-bottom: 6px; }
 .rotate-bar button { flex: 1; width: auto; padding: 10px 8px; font-size: .9rem; }
 .rotate-hint { font-size: .78rem; color: var(--muted); margin-bottom: 10px; }
+
+/* 瀏覽器不支援原生全螢幕時的備援：隱藏分頁列、收掉邊距 */
+body.pseudo-fs { padding: 0; }
+body.pseudo-fs .nav-tabs { display: none; }

@@ -442,23 +442,21 @@ function updateLineupSelects(activePlayers) {
 
 function validateLineupSelection() {}
 
-// ==================== 站位輪轉（賽前 / 局間共用） ====================
-// 順序 [P1..P6]；順時針 = P2→P1→P6→P5→P4→P3→P2（與比賽中換發球輪轉方向一致）
-function rotateSelectGroup(prefix, dir) {
+// ==================== 站位輪轉（賽前 / 局間共用，僅順時針） ====================
+// 順序 [P1..P6]；順時針一格 = P2→P1、P3→P2、…、P1→P6（與比賽中換發球輪轉相同）
+function rotateSelectGroup(prefix) {
     const ids = [1, 2, 3, 4, 5, 6].map(n => `${prefix}${n}`);
     const vals = ids.map(id => document.getElementById(id).value);
-    const rotated = dir > 0
-        ? [...vals.slice(1), vals[0]]
-        : [vals[5], ...vals.slice(0, 5)];
+    const rotated = [...vals.slice(1), vals[0]];
     ids.forEach((id, i) => { document.getElementById(id).value = rotated[i]; });
 }
 
-function rotatePregameLineup(dir) {
-    rotateSelectGroup('sel-p', dir);
+function rotatePregameLineup() {
+    rotateSelectGroup('sel-p');
 }
 
-function rotateNextLineup(dir) {
-    rotateSelectGroup('next-sel-p', dir);
+function rotateNextLineup() {
+    rotateSelectGroup('next-sel-p');
 }
 
 function resetNextLineupToStart() {
@@ -471,21 +469,28 @@ function resetNextLineupToStart() {
 function toggleFullscreen() {
     const el = document.documentElement;
     const isFs = document.fullscreenElement || document.webkitFullscreenElement;
-    if (!isFs) {
-        const req = el.requestFullscreen || el.webkitRequestFullscreen;
-        if (!req) {
-            alert('此瀏覽器不支援網頁全螢幕。\niPhone 請用 Safari「分享 → 加入主畫面」後從主畫面開啟，即可全螢幕使用。');
-            return;
-        }
-        const p = req.call(el);
-        if (p && p.catch) p.catch(() => alert('無法進入全螢幕，請改按 F11 或瀏覽器選單的全螢幕。'));
-    } else {
+
+    if (isFs) {
         (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+        return;
     }
+    if (document.body.classList.contains('pseudo-fs')) {
+        document.body.classList.remove('pseudo-fs');
+        syncFullscreenButton();
+        return;
+    }
+
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    const fallback = () => { document.body.classList.add('pseudo-fs'); syncFullscreenButton(); };
+    if (!req) { fallback(); return; }
+    try {
+        const p = req.call(el);
+        if (p && p.catch) p.catch(fallback);
+    } catch (e) { fallback(); }
 }
 
 function syncFullscreenButton() {
-    const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+    const isFs = document.fullscreenElement || document.webkitFullscreenElement || document.body.classList.contains('pseudo-fs');
     const btn = document.getElementById('fullscreen-btn');
     if (btn) btn.textContent = isFs ? '✕ 退出全螢幕' : '⛶ 全螢幕';
 }
@@ -858,6 +863,12 @@ function scorePoint(team, reason) {
     checkSetWinCondition();
 }
 
+let setEndSetNum = 1;   // 目前「局結束 / 確認下一局站位」視窗對應的局數
+
+function isMatchOverAfterSet(setNum) {
+    return setNum >= 3 || (setNum === 2 && matchSetWinners[1] === matchSetWinners[2]);
+}
+
 function checkSetWinCondition() {
     const currentData = matchSets[currentSet];
     let targetScore = currentSet === 3 ? 15 : 25;
@@ -866,31 +877,34 @@ function checkSetWinCondition() {
 
     if ((our >= targetScore || opp >= targetScore) && Math.abs(our - opp) >= 2) {
         currentData.isFinished = true;
-        let winnerKey = our > opp ? 'our' : 'opponent';
-        let winnerName = our > opp ? activeTeamName : matchInfo.opponent;
-        matchSetWinners[currentSet] = winnerKey;
-
-        document.getElementById('set-end-title').textContent = `🎉 第 ${currentSet} 局結束！`;
-        document.getElementById('set-end-score').textContent = `${activeTeamName} ${our} : ${opp} ${matchInfo.opponent}`;
-
-        let isStraightTwo = false;
-        if (currentSet === 2 && matchSetWinners[1] === matchSetWinners[2]) {
-            isStraightTwo = true;
-        }
-
-        if (isStraightTwo || currentSet >= 3) {
-            document.getElementById('set-match-status').textContent = `本局由 【${winnerName}】 獲勝！ 🏆 全場比賽已由 【${winnerName}】 取得勝利！`;
-            document.getElementById('next-set-btn').style.display = 'none';
-            document.getElementById('next-set-lineup-preview').style.display = 'none';
-        } else {
-            document.getElementById('set-match-status').textContent = `本局由 【${winnerName}】 獲勝！準備進入下一局。`;
-            document.getElementById('next-set-btn').style.display = 'block';
-            document.getElementById('next-set-lineup-preview').style.display = 'block';
-            populateNextSetLineupSelects();
-        }
-
-        document.getElementById('set-end-modal').style.display = 'flex';
+        matchSetWinners[currentSet] = our > opp ? 'our' : 'opponent';
+        showSetEndModal(currentSet);
     }
+}
+
+// 顯示「局結束＋確認下一局站位」視窗（局結束當下、或看完報表後都可重新開啟）
+function showSetEndModal(setNum) {
+    setEndSetNum = setNum;
+    const data = matchSets[setNum];
+    const our = data.ourScore;
+    const opp = data.opponentScore;
+    const winnerName = our > opp ? activeTeamName : matchInfo.opponent;
+
+    document.getElementById('set-end-title').textContent = `🎉 第 ${setNum} 局結束！`;
+    document.getElementById('set-end-score').textContent = `${activeTeamName} ${our} : ${opp} ${matchInfo.opponent}`;
+
+    if (isMatchOverAfterSet(setNum)) {
+        document.getElementById('set-match-status').textContent = `本局由 【${winnerName}】 獲勝！ 🏆 全場比賽已由 【${winnerName}】 取得勝利！`;
+        document.getElementById('next-set-btn').style.display = 'none';
+        document.getElementById('next-set-lineup-preview').style.display = 'none';
+    } else {
+        document.getElementById('set-match-status').textContent = `本局由 【${winnerName}】 獲勝！準備進入下一局。`;
+        document.getElementById('next-set-btn').style.display = 'block';
+        document.getElementById('next-set-lineup-preview').style.display = 'block';
+        populateNextSetLineupSelects();
+    }
+
+    document.getElementById('set-end-modal').style.display = 'flex';
 }
 
 function populateNextSetLineupSelects() {
@@ -941,7 +955,7 @@ function proceedToNextSet() {
     }
 
     closeSetEndModal();
-    let nextSetNum = currentSet + 1;
+    let nextSetNum = setEndSetNum + 1;
     if (nextSetNum <= 3) {
         const nextBtn = document.getElementById(`set-btn-${nextSetNum}`);
         nextBtn.disabled = false;
@@ -1214,12 +1228,16 @@ function generateReportHTML() {
         teamPlayerError += st.serveError + st.attackError + st.dropError + st.blockError + st.defenseError + st.otherError
             + st.foulCarry + st.foulDoubleHit + st.foulNet + st.foulCrossing;
     });
-    const opponentGiftTotal = opponentErrors.serve + opponentErrors.attack + opponentErrors.foul + opponentErrors.other;
 
     let setLabelStr = (typeof currentSummaryType === 'number') ? `第 ${currentSummaryType} 局` : `全場總計`;
     let nextSetQuickBtn = "";
-    if (typeof currentSummaryType === 'number' && currentSummaryType < 3 && matchSetWinners[currentSummaryType]) {
-        nextSetQuickBtn = `<button class="btn-success" style="padding:6px 12px; font-size:0.85rem;" onclick="closeSummaryModal(); switchSet(${currentSummaryType + 1});">➡️ 進入第 ${currentSummaryType + 1} 局</button>`;
+    if (typeof currentSummaryType === 'number' && currentSummaryType < 3
+        && matchSetWinners[currentSummaryType] && !isMatchOverAfterSet(currentSummaryType)) {
+        const nextNum = currentSummaryType + 1;
+        const nextUnlocked = !document.getElementById(`set-btn-${nextNum}`).disabled;
+        nextSetQuickBtn = nextUnlocked
+            ? `<button class="btn-success" style="padding:6px 12px; font-size:0.85rem;" onclick="closeSummaryModal(); switchSet(${nextNum});">➡️ 切換到第 ${nextNum} 局</button>`
+            : `<button class="btn-success" style="padding:6px 12px; font-size:0.85rem;" onclick="closeSummaryModal(); showSetEndModal(${currentSummaryType});">➡️ 確認站位，進入第 ${nextNum} 局</button>`;
     }
 
     let html = `
@@ -1299,14 +1317,12 @@ function generateReportHTML() {
         <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:15px; margin-top:15px;">
             <table class="paper-matrix-table" style="table-layout: auto;">
                 <thead>
-                    <tr><th colspan="4">${activeTeamName}</th></tr>
-                    <tr><th>我方得分</th><th>球員得分</th><th>對方失誤送分</th><th>我方球員失誤</th></tr>
+                    <tr><th colspan="2">${activeTeamName}（球員統計合計）</th></tr>
+                    <tr><th>得分</th><th>失誤</th></tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td style="font-size:1.1rem; font-weight:bold; color:#12896a;">${setOurScore}</td>
-                        <td><b>${teamPlayerGain}</b></td>
-                        <td><b>${opponentGiftTotal}</b></td>
+                        <td style="font-size:1.1rem; font-weight:bold; color:#12896a;">${teamPlayerGain}</td>
                         <td style="font-size:1.1rem; font-weight:bold; color:#d4495a;">${teamPlayerError}</td>
                     </tr>
                 </tbody>
