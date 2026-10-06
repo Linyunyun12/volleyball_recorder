@@ -601,3 +601,27 @@ button:disabled { cursor: not-allowed; }
 /* 彈窗：避免 padding 讓寬度超出畫面；報表分頁文字不換行 */
 [id$="-modal"] > div { box-sizing: border-box; max-width: 100%; }
 #summary-modal .tab-btn { white-space: nowrap; flex: none; }
+
+/* ============ 全螢幕按鈕 ============ */
+.fullscreen-btn {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    right: 8px;
+    z-index: 900;
+    width: auto;
+    padding: 8px 12px;
+    font-size: .85rem;
+    font-weight: 700;
+    color: #fff;
+    background: rgba(28, 43, 58, .82);
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+}
+.fullscreen-btn:active { transform: scale(.96); }
+
+/* ============ 輪轉鍵 ============ */
+.rotate-bar { display: flex; gap: 8px; margin-bottom: 6px; }
+.rotate-bar button { flex: 1; width: auto; padding: 10px 8px; font-size: .9rem; }
+.rotate-hint { font-size: .78rem; color: var(--muted); margin-bottom: 10px; }

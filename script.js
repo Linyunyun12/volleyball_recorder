@@ -50,6 +50,7 @@ let matchInfo = { date: "", tournament: "", opponent: "" };
 let currentSet = 1;
 let matchSets = { 1: createSetState(), 2: createSetState(), 3: createSetState() };
 let matchSetWinners = {};
+let matchStartLineup = ["", "", "", "", "", ""];   // 賽前設定的先發站位 [P1..P6]（局間預設）
 
 // 球員與場上操作
 let registeredPlayers = [];
@@ -441,6 +442,56 @@ function updateLineupSelects(activePlayers) {
 
 function validateLineupSelection() {}
 
+// ==================== 站位輪轉（賽前 / 局間共用） ====================
+// 順序 [P1..P6]；順時針 = P2→P1→P6→P5→P4→P3→P2（與比賽中換發球輪轉方向一致）
+function rotateSelectGroup(prefix, dir) {
+    const ids = [1, 2, 3, 4, 5, 6].map(n => `${prefix}${n}`);
+    const vals = ids.map(id => document.getElementById(id).value);
+    const rotated = dir > 0
+        ? [...vals.slice(1), vals[0]]
+        : [vals[5], ...vals.slice(0, 5)];
+    ids.forEach((id, i) => { document.getElementById(id).value = rotated[i]; });
+}
+
+function rotatePregameLineup(dir) {
+    rotateSelectGroup('sel-p', dir);
+}
+
+function rotateNextLineup(dir) {
+    rotateSelectGroup('next-sel-p', dir);
+}
+
+function resetNextLineupToStart() {
+    [1, 2, 3, 4, 5, 6].forEach((n, i) => {
+        document.getElementById(`next-sel-p${n}`).value = matchStartLineup[i] || '';
+    });
+}
+
+// ==================== 全螢幕 ====================
+function toggleFullscreen() {
+    const el = document.documentElement;
+    const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (!isFs) {
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (!req) {
+            alert('此瀏覽器不支援網頁全螢幕。\niPhone 請用 Safari「分享 → 加入主畫面」後從主畫面開啟，即可全螢幕使用。');
+            return;
+        }
+        const p = req.call(el);
+        if (p && p.catch) p.catch(() => alert('無法進入全螢幕，請改按 F11 或瀏覽器選單的全螢幕。'));
+    } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    }
+}
+
+function syncFullscreenButton() {
+    const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+    const btn = document.getElementById('fullscreen-btn');
+    if (btn) btn.textContent = isFs ? '✕ 退出全螢幕' : '⛶ 全螢幕';
+}
+document.addEventListener('fullscreenchange', syncFullscreenButton);
+document.addEventListener('webkitfullscreenchange', syncFullscreenButton);
+
 function openAttendanceModal() {
     const container = document.getElementById('attendance-list-container');
     container.innerHTML = '';
@@ -572,6 +623,7 @@ function startMatch() {
     }
 
     currentSet = 1;
+    matchStartLineup = [p1, p2, p3, p4, p5, p6];
     for (let s = 1; s <= 3; s++) {
         let initialLineup = [p1, p2, p3, p4, p5, p6];
         matchSets[s] = createSetState(initialLineup, document.getElementById('initial-serve').value === 'our');
@@ -702,7 +754,7 @@ function confirmSubstitute() {
     currentData.lineup[subPosIndex] = incomingPlayer;
     currentData.substitutedPlayers.add(incomingPlayer);
 
-    currentData.historyLog.push({ team: 'info', text: `🔄 【第${currentSet}局換人】P${subPosIndex+1}: ${outgoingPlayer} 🔀 ${incomingPlayer}`, lineup: [...currentData.lineup], hasServe: currentData.hasServe });
+    currentData.historyLog.push({ team: 'info', ourScore: currentData.ourScore, opponentScore: currentData.opponentScore, text: `🔄 【第${currentSet}局換人】P${subPosIndex+1}: ${outgoingPlayer} 🔀 ${incomingPlayer}`, lineup: [...currentData.lineup], hasServe: currentData.hasServe });
     closeSubstituteModal();
     toggleSubstituteMode();
     updateUI();
@@ -843,14 +895,16 @@ function checkSetWinCondition() {
 
 function populateNextSetLineupSelects() {
     const posIds = ["next-sel-p4", "next-sel-p3", "next-sel-p2", "next-sel-p5", "next-sel-p6", "next-sel-p1"];
-    const currentLineup = matchSets[currentSet].lineup;
+    // 預設 = 賽前設定的先發站位
+    const posToIdx = { "next-sel-p1": 0, "next-sel-p2": 1, "next-sel-p3": 2, "next-sel-p4": 3, "next-sel-p5": 4, "next-sel-p6": 5 };
 
-    posIds.forEach((id, idx) => {
+    posIds.forEach((id) => {
         const select = document.getElementById(id);
         if (select) {
+            const defaultPlayer = matchStartLineup[posToIdx[id]];
             let optionsHTML = '<option value="">-- 請選擇球員 --</option>';
             registeredPlayers.forEach(p => {
-                let selectedAttr = (p === currentLineup[idx]) ? 'selected' : '';
+                let selectedAttr = (p === defaultPlayer) ? 'selected' : '';
                 optionsHTML += `<option value="${p}" ${selectedAttr}>${p}</option>`;
             });
             select.innerHTML = optionsHTML;
@@ -912,7 +966,7 @@ function manualRotateWithWarning() {
 
     if (confirm('⚠️ 警告：確定要手動執行一次順時針輪轉嗎？')) {
         rotateLineup();
-        currentData.historyLog.push({ team: 'info', text: `【手動輪轉】當前發球員變更為: ${currentData.lineup[0]}`, lineup: [...currentData.lineup], hasServe: currentData.hasServe });
+        currentData.historyLog.push({ team: 'info', ourScore: currentData.ourScore, opponentScore: currentData.opponentScore, text: `【手動輪轉】當前發球員變更為: ${currentData.lineup[0]}`, lineup: [...currentData.lineup], hasServe: currentData.hasServe });
         updateUI();
     }
 }
@@ -1149,6 +1203,19 @@ function generateReportHTML() {
         reportPlayers = getSortedReportPlayers();
     }
 
+    // 我方球員的得分 / 失誤：只加總「我方球員自己的」紀錄
+    // （對方得分、對方失誤送分都不算進我方球員的失誤或得分）
+    let teamPlayerGain = 0;
+    let teamPlayerError = 0;
+    reportPlayers.forEach(pName => {
+        const st = statsToRender[pName];
+        if (!st) return;
+        teamPlayerGain += st.serveAce + st.attackScore + st.dropScore + st.blockScore + st.defenseScore;
+        teamPlayerError += st.serveError + st.attackError + st.dropError + st.blockError + st.defenseError + st.otherError
+            + st.foulCarry + st.foulDoubleHit + st.foulNet + st.foulCrossing;
+    });
+    const opponentGiftTotal = opponentErrors.serve + opponentErrors.attack + opponentErrors.foul + opponentErrors.other;
+
     let setLabelStr = (typeof currentSummaryType === 'number') ? `第 ${currentSummaryType} 局` : `全場總計`;
     let nextSetQuickBtn = "";
     if (typeof currentSummaryType === 'number' && currentSummaryType < 3 && matchSetWinners[currentSummaryType]) {
@@ -1232,13 +1299,15 @@ function generateReportHTML() {
         <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:15px; margin-top:15px;">
             <table class="paper-matrix-table" style="table-layout: auto;">
                 <thead>
-                    <tr><th colspan="2">${activeTeamName}</th></tr>
-                    <tr><th>得分</th><th>失誤</th></tr>
+                    <tr><th colspan="4">${activeTeamName}</th></tr>
+                    <tr><th>我方得分</th><th>球員得分</th><th>對方失誤送分</th><th>我方球員失誤</th></tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td style="font-size:1.1rem; font-weight:bold; color:#12896a;">${setOurScore}</td>
-                        <td style="font-size:1.1rem; font-weight:bold; color:#d4495a;">${setOppScore}</td>
+                        <td><b>${teamPlayerGain}</b></td>
+                        <td><b>${opponentGiftTotal}</b></td>
+                        <td style="font-size:1.1rem; font-weight:bold; color:#d4495a;">${teamPlayerError}</td>
                     </tr>
                 </tbody>
             </table>
