@@ -3,10 +3,10 @@
     --ink: #1c2b3a;
     --ink-soft: #4a5a6c;
     --muted: #7a8899;
-    --bg: #eef2f6;
-    --card-bg: #ffffff;
-    --panel: #f5f8fb;
-    --border-color: #dce4ec;
+    --bg: #f6f1e3;
+    --card-bg: #fffdf8;
+    --panel: #faf6ea;
+    --border-color: #e5ddc8;
 
     --primary: #2f6db5;
     --primary-soft: #e8f0fa;
@@ -51,7 +51,7 @@ h3 { font-size: 1.05rem; }
     gap: 6px;
     margin-bottom: 16px;
     padding: 5px;
-    background: #dfe7ef;
+    background: #ebe3cd;
     border-radius: 14px;
     border: none;
 }
@@ -78,7 +78,7 @@ h3 { font-size: 1.05rem; }
 
 /* 局數切換（比賽中） */
 #set-btn-1, #set-btn-2, #set-btn-3 {
-    background: #dfe7ef;
+    background: #ebe3cd;
     border-radius: 10px;
     font-size: .92rem;
 }
@@ -396,8 +396,8 @@ button:disabled { cursor: not-allowed; }
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.paper-matrix-table th { background: #e3ebf3; font-weight: 700; color: var(--ink); }
-.paper-matrix-table tbody tr:nth-child(even) { background: #f7fafc; }
+.paper-matrix-table th { background: #efe8d4; font-weight: 700; color: var(--ink); }
+.paper-matrix-table tbody tr:nth-child(even) { background: #fbf8f0; }
 .paper-matrix-table tbody tr:nth-child(odd) { background: #fff; }
 
 @media (max-width: 480px) {
@@ -468,7 +468,7 @@ button:disabled { cursor: not-allowed; }
 .timeout-choices button { padding: 18px 8px; font-size: 1.05rem; width: 100%; }
 
 /* ============ 計分面板：左 65% 我方球員 / 右 35% 對方失誤（等高對齊） ============ */
-.scoring-layout { grid-template-columns: 65fr 35fr; gap: 14px; align-items: stretch; }
+.scoring-layout { grid-template-columns: 60fr 40fr; gap: 14px; align-items: stretch; }
 
 #scoring-groups, .opp-gifts {
     border: 1px solid var(--border-color);
@@ -490,7 +490,7 @@ button:disabled { cursor: not-allowed; }
     margin-bottom: 2px;
     border-bottom: 2px solid var(--border-color);
 }
-#scoring-groups::before { content: "🏐 我方球員數據"; color: var(--primary); }
+#scoring-groups::before { content: "我方球員數據"; color: var(--primary); }
 #scoring-groups .score-group { flex: 1; }
 
 .opp-gifts {
@@ -509,3 +509,95 @@ button:disabled { cursor: not-allowed; }
     .opp-gifts { grid-template-rows: auto; }
     .opp-gifts .score-btn { flex: none; padding: 14px 8px; }
 }
+/* ============ 計分面板：上 70% 我方球員數據（左右並排）／下 30% 對方失誤（單列） ============ */
+.scoring-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 7fr) minmax(0, 3fr);
+    min-height: 480px;
+    gap: 14px;
+}
+
+#scoring-groups {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    align-content: stretch;
+}
+#scoring-groups::before { grid-column: 1 / -1; margin-bottom: 0; }
+#scoring-groups .score-group {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    gap: 8px;
+    padding: 12px;
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+}
+#scoring-groups .score-group:last-child { border: 1px solid var(--border-color); }
+.score-group-title { text-align: center; }
+.score-group-btns { flex-wrap: nowrap; }
+.score-group-btns .score-btn { flex: 1 1 0; min-width: 0; padding: 12px 4px; }
+
+.opp-gifts {
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: auto 1fr;
+}
+.opp-gifts .score-btn { padding: 8px 4px; }
+
+@media (max-width: 640px) {
+    .scoring-layout { min-height: 0; grid-template-rows: auto auto; }
+    #scoring-groups { grid-template-columns: repeat(2, 1fr); }
+    .opp-gifts { grid-template-columns: repeat(2, 1fr); grid-template-rows: auto; }
+    .opp-gifts .score-btn { padding: 14px 4px; }
+}
+
+/* ============ 精簡版：去掉多層外框與重複標題 ============ */
+.card:has(.scoring-layout) > h3 { display: none; }
+
+.scoring-layout { min-height: 0; grid-template-rows: auto auto; gap: 14px; }
+
+#scoring-groups, .opp-gifts {
+    background: none;
+    border: none;
+    padding: 0;
+    border-radius: 0;
+}
+#scoring-groups::before { display: none; }
+
+#scoring-groups { grid-template-columns: repeat(3, 1fr); gap: 4px 18px; }
+#scoring-groups .score-group,
+#scoring-groups .score-group:last-child {
+    display: grid;
+    grid-template-columns: 2.6em 1fr;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+}
+.score-group-title { text-align: left; font-size: .9rem; color: var(--ink-soft); }
+.score-group-btns { gap: 6px; }
+.score-group-btns .score-btn { padding: 11px 4px; font-size: .92rem; }
+
+.opp-gifts {
+    border-top: 1px solid var(--border-color);
+    padding-top: 12px;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: auto auto;
+    gap: 8px;
+}
+.opp-gifts-title { text-align: left; border: none; padding: 0; margin: 0; font-size: .85rem; color: var(--ink-soft); }
+.opp-gifts .score-btn { height: auto; padding: 12px 4px; }
+
+@media (max-width: 640px) {
+    #scoring-groups { grid-template-columns: 1fr; }
+    #scoring-groups .score-group { grid-template-columns: 2.6em 1fr; }
+    .opp-gifts { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* 彈窗：避免 padding 讓寬度超出畫面；報表分頁文字不換行 */
+[id$="-modal"] > div { box-sizing: border-box; max-width: 100%; }
+#summary-modal .tab-btn { white-space: nowrap; flex: none; }

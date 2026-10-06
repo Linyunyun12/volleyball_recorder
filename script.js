@@ -7,56 +7,91 @@ const presetSixPlayers = [
     { num: "6", name: "球員6", pos: [] }
 ];
 
-let teamsData = { "逢甲資工": JSON.parse(JSON.stringify(presetSixPlayers)) };
-let activeTeamName = "逢甲資工";
+// ==================== 常數 ====================
+const STORAGE_KEY = 'volleyball_teams_data';
+const DEFAULT_TEAM_NAME = "我的球隊";
 
+// ==================== 資料結構工廠 ====================
+// 每位球員在單局內的數據欄位（全部歸零）
+function createPlayerStats() {
+    return {
+        serveAttempts: 0, serveAce: 0, serveError: 0,
+        attackScore: 0, attackError: 0,
+        dropScore: 0, dropError: 0,
+        blockScore: 0, blockError: 0,
+        defenseScore: 0, defenseError: 0,
+        otherError: 0,
+        setAttempts: 0,
+        foulCarry: 0, foulDoubleHit: 0, foulNet: 0, foulCrossing: 0
+    };
+}
+
+// 單局的初始狀態
+function createSetState(lineup = ["", "", "", "", "", ""], hasServe = true) {
+    return {
+        ourScore: 0,
+        opponentScore: 0,
+        lineup: lineup,
+        hasServe: hasServe,
+        historyLog: [],
+        playerStats: {},
+        substitutedPlayers: new Set(),
+        isFinished: false
+    };
+}
+
+// ==================== 全域狀態 ====================
+// 球隊資料
+let teamsData = { [DEFAULT_TEAM_NAME]: JSON.parse(JSON.stringify(presetSixPlayers)) };
+let activeTeamName = DEFAULT_TEAM_NAME;
+
+// 比賽資訊與局數
+let matchInfo = { date: "", tournament: "", opponent: "" };
 let currentSet = 1;
-let matchSets = {
-    1: { ourScore: 0, opponentScore: 0, lineup: ["", "", "", "", "", ""], hasServe: true, historyLog: [], playerStats: {}, substitutedPlayers: new Set(), isFinished: false },
-    2: { ourScore: 0, opponentScore: 0, lineup: ["", "", "", "", "", ""], hasServe: true, historyLog: [], playerStats: {}, substitutedPlayers: new Set(), isFinished: false },
-    3: { ourScore: 0, opponentScore: 0, lineup: ["", "", "", "", "", ""], hasServe: true, historyLog: [], playerStats: {}, substitutedPlayers: new Set(), isFinished: false }
-};
+let matchSets = { 1: createSetState(), 2: createSetState(), 3: createSetState() };
+let matchSetWinners = {};
 
+// 球員與場上操作
 let registeredPlayers = [];
+let attendanceStatus = {};
 let activePlayerIndex = 0;
 let isSubstituteMode = false;
 let subPosIndex = null;
-let matchInfo = { date: "", tournament: "", opponent: "" };
-let attendanceStatus = {};
-let currentSummaryType = 'total';
-let matchSetWinners = {};
 
-// 💡 恢復「其他失誤」為需選定球員的失誤項目，直接讓對方得分
+// 報表
+let currentSummaryType = 'total';
+
+// 記錄項目（label 不含 icon；impact: our=我方得分, opponent=對方得分, none=僅計次數）
 const categoryDetails = {
     "發球": [
-        { label: "⚪ 一般發球 (未得失分)", type: "attempt", impact: "none", reason: "發球次數", statKey: "serveAttempts" },
-        { label: "🟢 發球得分 (Ace)", type: "score", impact: "our", reason: "發球得分", statKey: "serveAce" },
-        { label: "🔴 發球失誤", type: "error", impact: "opponent", reason: "發球失誤", statKey: "serveError" }
+        { label: "發球+1", type: "attempt", impact: "none", reason: "發球次數", statKey: "serveAttempts" },
+        { label: "發球 Ace", type: "score", impact: "our", reason: "發球得分", statKey: "serveAce" },
+        { label: "發球失誤", type: "error", impact: "opponent", reason: "發球失誤", statKey: "serveError" }
     ],
     "攻擊": [
-        { label: "🟢 攻擊得分", type: "score", impact: "our", reason: "攻擊得分", statKey: "attackScore" },
-        { label: "🔴 攻擊失分 / 被攔", type: "error", impact: "opponent", reason: "攻擊失分", statKey: "attackError" }
+        { label: "攻擊得分", type: "score", impact: "our", reason: "攻擊得分", statKey: "attackScore" },
+        { label: "攻擊失分", type: "error", impact: "opponent", reason: "攻擊失分", statKey: "attackError" }
     ],
     "吊球": [
-        { label: "🟢 吊球得分", type: "score", impact: "our", reason: "吊球得分", statKey: "dropScore" },
-        { label: "🔴 吊球失誤", type: "error", impact: "opponent", reason: "吊球失誤", statKey: "dropError" }
+        { label: "吊球得分", type: "score", impact: "our", reason: "吊球得分", statKey: "dropScore" },
+        { label: "吊球失誤", type: "error", impact: "opponent", reason: "吊球失誤", statKey: "dropError" }
     ],
     "攔網": [
-        { label: "🟢 攔網得分 (Block)", type: "score", impact: "our", reason: "攔網得分", statKey: "blockScore" },
-        { label: "🔴 攔網失分", type: "error", impact: "opponent", reason: "攔網失分", statKey: "blockError" }
+        { label: "攔網得分", type: "score", impact: "our", reason: "攔網得分", statKey: "blockScore" },
+        { label: "攔網失分", type: "error", impact: "opponent", reason: "攔網失分", statKey: "blockError" }
     ],
     "防守": [
-        { label: "🟢 防守到位/得分", type: "score", impact: "our", reason: "防守得分", statKey: "defenseScore" },
-        { label: "🔴 防守失誤 (接噴)", type: "error", impact: "opponent", reason: "防守失誤", statKey: "defenseError" }
+        { label: "防守得分", type: "score", impact: "our", reason: "防守得分", statKey: "defenseScore" },
+        { label: "防守失誤", type: "error", impact: "opponent", reason: "防守失誤", statKey: "defenseError" }
     ],
     "其他失誤": [
-        { label: "🔴 其他失誤 (球員失誤失分)", type: "error", impact: "opponent", reason: "其他失誤", statKey: "otherError" }
+        { label: "其他失誤", type: "error", impact: "opponent", reason: "其他失誤", statKey: "otherError" }
     ],
     "犯規": [
-        { label: "⚠️ 持球犯規", type: "error", impact: "opponent", reason: "持球犯規", statKey: "foulCarry" },
-        { label: "⚠️ 二次犯規", type: "error", impact: "opponent", reason: "二次犯規", statKey: "foulDoubleHit" },
-        { label: "⚠️ 觸網犯規", type: "error", impact: "opponent", reason: "觸網犯規", statKey: "foulNet" },
-        { label: "⚠️️ 越界犯規", type: "error", impact: "opponent", reason: "越界犯規", statKey: "foulCrossing" }
+        { label: "持球犯規", type: "error", impact: "opponent", reason: "持球犯規", statKey: "foulCarry" },
+        { label: "二次犯規", type: "error", impact: "opponent", reason: "二次犯規", statKey: "foulDoubleHit" },
+        { label: "觸網犯規", type: "error", impact: "opponent", reason: "觸網犯規", statKey: "foulNet" },
+        { label: "越界犯規", type: "error", impact: "opponent", reason: "越界犯規", statKey: "foulCrossing" }
     ]
 };
 
@@ -77,17 +112,17 @@ function switchTab(tabId) {
 }
 
 function saveAllData() {
-    localStorage.setItem('volleyball_teams_data', JSON.stringify(teamsData));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(teamsData));
 }
 
 function loadAllData() {
-    const saved = localStorage.getItem('volleyball_teams_data');
+    const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
         teamsData = JSON.parse(saved);
         const keys = Object.keys(teamsData);
         if (keys.length > 0) activeTeamName = keys[0];
     } else {
-        teamsData = { "逢甲資工": JSON.parse(JSON.stringify(presetSixPlayers)) };
+        teamsData = { [DEFAULT_TEAM_NAME]: JSON.parse(JSON.stringify(presetSixPlayers)) };
         saveAllData();
     }
 }
@@ -262,7 +297,7 @@ function cancelEdit() {
         cb.closest('.position-tag').classList.remove('checked');
     });
 
-    document.getElementById('form-title').textContent = "👤 新增球員到此球隊";
+    document.getElementById('form-title').textContent = "新增球員到此球隊";
     document.getElementById('save-player-btn').textContent = "確認新增球員";
     document.getElementById('cancel-edit-btn').style.display = "none";
 }
@@ -412,7 +447,7 @@ function openAttendanceModal() {
 
     const players = [...(teamsData[activeTeamName] || [])].sort(sortByNum);
     if (players.length === 0) {
-        container.innerHTML = '<p style="text-align:center; color:#64748b;">目前球隊沒有球員，請先至大名單新增！</p>';
+        container.innerHTML = '<p style="text-align:center; color:#64748b;">目前球隊沒有球員，請先至球隊名單新增！</p>';
         document.getElementById('attendance-modal').style.display = 'flex';
         return;
     }
@@ -467,13 +502,13 @@ function confirmEditMatchInfo() {
     if (newTournament) matchInfo.tournament = newTournament;
     if (newOpponent) matchInfo.opponent = newOpponent;
 
-    document.getElementById('current-match-title').textContent = `🔥 [${matchInfo.tournament}] ${activeTeamName} v.s ${matchInfo.opponent}`;
+    document.getElementById('current-match-title').textContent = `[${matchInfo.tournament}] ${activeTeamName} v.s ${matchInfo.opponent}`;
     document.getElementById('scoreboard-opp-name').textContent = `${matchInfo.opponent} 得分`;
 
     closeEditMatchInfoModal();
 }
 
-// 💡 暫停記錄函式 (比分格式：我方:對方)
+// 暫停記錄函式 (比分格式：我方:對方)
 function openTimeoutModal() {
     const currentData = matchSets[currentSet];
     if (currentData.isFinished) {
@@ -492,7 +527,7 @@ function closeTimeoutModal() {
 function confirmTimeout(requester) {
     const currentData = matchSets[currentSet];
 
-    let logText = `[${currentData.ourScore}:${currentData.opponentScore}] ⏸️ 【暫停記錄】由 【${requester}】 提出暫停 (比分 ${currentData.ourScore}:${currentData.opponentScore})`;
+    let logText = `[${currentData.ourScore}:${currentData.opponentScore}] 【暫停記錄】由 【${requester}】 提出暫停 (比分 ${currentData.ourScore}:${currentData.opponentScore})`;
 
     currentData.historyLog.push({
         team: 'info',
@@ -528,36 +563,26 @@ function startMatch() {
     matchInfo.tournament = document.getElementById('match-tournament').value.trim() || "友誼賽";
     matchInfo.opponent = document.getElementById('opponent-team-name').value.trim() || "對手";
 
+    matchSetWinners = {};
+    for (let s = 2; s <= 3; s++) {
+        const lockBtn = document.getElementById(`set-btn-${s}`);
+        lockBtn.disabled = true;
+        lockBtn.style.opacity = '0.5';
+        lockBtn.style.cursor = 'not-allowed';
+    }
+
     currentSet = 1;
     for (let s = 1; s <= 3; s++) {
         let initialLineup = [p1, p2, p3, p4, p5, p6];
-        matchSets[s] = {
-            ourScore: 0,
-            opponentScore: 0,
-            lineup: initialLineup,
-            hasServe: (document.getElementById('initial-serve').value === 'our'),
-            historyLog: [],
-            playerStats: {},
-            substitutedPlayers: new Set(),
-            isFinished: false
-        };
+        matchSets[s] = createSetState(initialLineup, document.getElementById('initial-serve').value === 'our');
         initialLineup.forEach(p => matchSets[s].substitutedPlayers.add(p));
 
         registeredPlayers.forEach(pName => {
-            matchSets[s].playerStats[pName] = {
-                serveAttempts: 0, serveAce: 0, serveError: 0,
-                attackScore: 0, attackError: 0,
-                dropScore: 0, dropError: 0,
-                blockScore: 0, blockError: 0,
-                defenseScore: 0, defenseError: 0,
-                otherError: 0,
-                setAttempts: 0,
-                foulCarry: 0, foulDoubleHit: 0, foulNet: 0, foulCrossing: 0
-            };
+            matchSets[s].playerStats[pName] = createPlayerStats();
         });
     }
 
-    document.getElementById('current-match-title').textContent = `🔥 [${matchInfo.tournament}] ${activeTeamName} v.s ${matchInfo.opponent}`;
+    document.getElementById('current-match-title').textContent = `[${matchInfo.tournament}] ${activeTeamName} v.s ${matchInfo.opponent}`;
     document.getElementById('scoreboard-our-name').textContent = `${activeTeamName} 得分`;
     document.getElementById('scoreboard-opp-name').textContent = `${matchInfo.opponent} 得分`;
 
@@ -600,11 +625,11 @@ function toggleSubstituteMode() {
     isSubstituteMode = !isSubstituteMode;
     const btn = document.getElementById('sub-mode-btn');
     if (isSubstituteMode) {
-        btn.textContent = "🔄 模式：點擊球員進行【換人】";
-        btn.style.background = "#e11d48";
+        btn.textContent = "目前：點擊球員換人";
+        btn.style.background = "#d4495a";
         btn.style.color = "white";
     } else {
-        btn.textContent = "🔄 模式：點擊球員計分";
+        btn.textContent = "目前：點擊球員計分";
         btn.style.background = "#d97706";
         btn.style.color = "white";
     }
@@ -749,7 +774,7 @@ function recordDetailedEvent(impactTeam, category, reason, statKey) {
     }
 
     let logText = `[${currentData.ourScore}:${currentData.opponentScore}] ${impactTeam === 'our' ? '🟢 我方得分' : (impactTeam === 'opponent' ? '🔴 對手得分' : '⚪ 記錄次數')} - [${currentPlayer}] ${category}：${reason}`;
-    if (rotatedThisPoint) logText += " ➔ 【順時針輪轉 🔄】";
+    if (rotatedThisPoint) logText += " ➔ 【順時針輪轉】";
 
     currentData.historyLog.push({ statsApplied: statsApplied.map(k => ({ player: currentPlayer, key: k })), team: impactTeam, reason: `${category}-${reason}`, ourScore: currentData.ourScore, opponentScore: currentData.opponentScore, lineup: [...currentData.lineup], hasServe: currentData.hasServe, text: logText });
     updateUI();
@@ -774,7 +799,7 @@ function scorePoint(team, reason) {
     }
 
     let logText = `[${currentData.ourScore}:${currentData.opponentScore}] 🟢 我方得分 - ${reason} (對方失誤送分)`;
-    if (rotatedThisPoint) logText += " ➔ 【順時針輪轉 🔄】";
+    if (rotatedThisPoint) logText += " ➔ 【順時針輪轉】";
 
     currentData.historyLog.push({ team, reason, ourScore: currentData.ourScore, opponentScore: currentData.opponentScore, lineup: [...currentData.lineup], hasServe: currentData.hasServe, text: logText });
     updateUI();
@@ -887,13 +912,14 @@ function manualRotateWithWarning() {
 
     if (confirm('⚠️ 警告：確定要手動執行一次順時針輪轉嗎？')) {
         rotateLineup();
-        currentData.historyLog.push({ team: 'info', text: `🔄 【手動輪轉】當前發球員變更為: ${currentData.lineup[0]}`, lineup: [...currentData.lineup], hasServe: currentData.hasServe });
+        currentData.historyLog.push({ team: 'info', text: `【手動輪轉】當前發球員變更為: ${currentData.lineup[0]}`, lineup: [...currentData.lineup], hasServe: currentData.hasServe });
         updateUI();
     }
 }
 
 function resetCurrentSetWithWarning() {
     const currentData = matchSets[currentSet];
+    if (currentData.isFinished) { alert('此局已結束，為唯讀狀態，無法重設！'); return; }
     if (confirm(`⚠️ 警告：確定要完全重設第 ${currentSet} 局的得分與所有技術紀錄嗎？此動作無法復原！`)) {
         currentData.ourScore = 0;
         currentData.opponentScore = 0;
@@ -951,11 +977,11 @@ function updateUI() {
     const badge = document.getElementById('serve-status-badge');
     if (currentData.hasServe) {
         badge.textContent = `發球權：我方 (${currentData.lineup[0]})`;
-        badge.style.background = '#22c55e';
+        badge.style.background = '#12896a';
         badge.style.color = '#fff';
     } else {
         badge.textContent = `發球權：對手`;
-        badge.style.background = '#ef4444';
+        badge.style.background = '#d4495a';
         badge.style.color = '#fff';
     }
 
@@ -963,17 +989,17 @@ function updateUI() {
     const rotateBtn = document.getElementById('manual-rotate-btn');
     const resetBtn = document.getElementById('reset-set-btn');
 
-    if (currentData.isFinished) {
-        controlsPanel.style.opacity = '0.5';
-        controlsPanel.style.pointerEvents = 'none';
-        rotateBtn.style.opacity = '0.5';
-        rotateBtn.style.pointerEvents = 'none';
-    } else {
-        controlsPanel.style.opacity = '1';
-        controlsPanel.style.pointerEvents = 'auto';
-        rotateBtn.style.opacity = '1';
-        rotateBtn.style.pointerEvents = 'auto';
-    }
+    // 該局結束後 → 唯讀：計分面板、暫停、換人、輪轉、重設全部鎖定（第 1、2、3 局一致）
+    const locked = currentData.isFinished;
+    [controlsPanel, rotateBtn, resetBtn,
+        document.getElementById('timeout-btn'),
+        document.getElementById('sub-mode-btn')].forEach(el => {
+        if (!el) return;
+        el.style.opacity = locked ? '0.5' : '1';
+        el.style.pointerEvents = locked ? 'none' : 'auto';
+    });
+    document.getElementById('current-set-label').textContent =
+        `第 ${currentSet} 局 ${currentSet === 3 ? '(決賽局 15分)' : '(25分)'}` + (locked ? ' 已結束・唯讀' : '');
 
     setActivePlayer(activePlayerIndex);
     renderLogs();
@@ -987,14 +1013,15 @@ function renderLogs() {
         let div = document.createElement('div');
         div.className = 'log-item';
         div.textContent = item.text;
-        if (item.team === 'our') div.style.color = '#059669';
-        else if (item.team === 'opponent') div.style.color = '#e11d48';
+        if (item.team === 'our') div.style.color = '#12896a';
+        else if (item.team === 'opponent') div.style.color = '#d4495a';
         else div.style.color = '#475569';
         box.appendChild(div);
     });
 }
 
 function openSummaryModal(type = 'total') {
+    if (type === 'set') type = currentSet;   // 「單局數據報表」→ 目前這一局
     currentSummaryType = type;
     updateSummaryModalTabs();
     generateReportHTML();
@@ -1059,7 +1086,7 @@ function getSortedReportPlayers(targetSetNum = null) {
     return [...startingSix, ...benchSubs, ...unplayed];
 }
 
-// 💡 報表生成：加入「其他失誤」欄位呈現
+// 報表生成：加入「其他失誤」欄位呈現
 function generateReportHTML() {
     const area = document.getElementById('summary-content-area');
     area.innerHTML = '';
@@ -1130,7 +1157,7 @@ function generateReportHTML() {
 
     let html = `
         <div style="background:#f1f5f9; padding:10px 15px; border-radius:8px; margin-bottom:15px; font-weight:bold; font-size:0.95rem; border:1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-            <div>📅 日期：${matchInfo.date || '未填'} | 🏆 比賽：${matchInfo.tournament || '友誼賽'} | 逢甲資工 v.s ${matchInfo.opponent || '對手'} | 📌 ${setLabelStr} | 📊 比分：${setOurScore} : ${setOppScore}</div>
+            <div>📅 日期：${matchInfo.date || '未填'} | 🏆 比賽：${matchInfo.tournament || '友誼賽'} | ${activeTeamName} v.s ${matchInfo.opponent || '對手'} | 📌 ${setLabelStr} | 📊 比分：${setOurScore} : ${setOppScore}</div>
             <div>${nextSetQuickBtn}</div>
         </div>
         <div style="overflow-x:auto;">
@@ -1146,6 +1173,8 @@ function generateReportHTML() {
                         <th colspan="2">防守</th>
                         <th rowspan="2" style="width: 35px;">其他<br>失誤</th>
                         <th colspan="4">犯規</th>
+                        <th rowspan="2" style="width: 40px;">總<br>得分</th>
+                        <th rowspan="2" style="width: 40px;">總<br>失分</th>
                     </tr>
                     <tr>
                         <th style="width: 30px;">次</th><th style="width: 30px;">得</th><th style="width: 30px;">失</th>
@@ -1169,6 +1198,10 @@ function generateReportHTML() {
             otherError: 0,
             foulCarry: 0, foulDoubleHit: 0, foulNet: 0, foulCrossing: 0
         };
+        // 總得分 = 發球Ace + 攻擊/吊球/攔網/防守得分；總失分 = 各項失誤 + 其他失誤 + 犯規
+        const totalGain = st.serveAce + st.attackScore + st.dropScore + st.blockScore + st.defenseScore;
+        const totalLoss = st.serveError + st.attackError + st.dropError + st.blockError + st.defenseError + st.otherError
+            + st.foulCarry + st.foulDoubleHit + st.foulNet + st.foulCrossing;
         let parts = pName.split(' ');
         let num = parts[0] || '';
         let name = parts.slice(1).join(' ') || pName;
@@ -1184,6 +1217,7 @@ function generateReportHTML() {
                 <td>${st.defenseScore}</td><td>${st.defenseError}</td>
                 <td>${st.otherError}</td>
                 <td>${st.foulCarry}</td><td>${st.foulDoubleHit}</td><td>${st.foulNet}</td><td>${st.foulCrossing}</td>
+                <td style="font-weight:bold; color:#12896a;">${totalGain}</td><td style="font-weight:bold; color:#d4495a;">${totalLoss}</td>
             </tr>
         `;
     });
@@ -1198,13 +1232,13 @@ function generateReportHTML() {
         <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:15px; margin-top:15px;">
             <table class="paper-matrix-table" style="table-layout: auto;">
                 <thead>
-                    <tr><th colspan="2">逢甲資訊</th></tr>
+                    <tr><th colspan="2">${activeTeamName}</th></tr>
                     <tr><th>得分</th><th>失誤</th></tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td style="font-size:1.1rem; font-weight:bold; color:#059669;">${setOurScore}</td>
-                        <td style="font-size:1.1rem; font-weight:bold; color:#e11d48;">${setOppScore}</td>
+                        <td style="font-size:1.1rem; font-weight:bold; color:#12896a;">${setOurScore}</td>
+                        <td style="font-size:1.1rem; font-weight:bold; color:#d4495a;">${setOppScore}</td>
                     </tr>
                 </tbody>
             </table>
@@ -1218,7 +1252,7 @@ function generateReportHTML() {
                     <tr>
                         <td><b>${opponentErrors.serve}</b></td>
                         <td><b>${opponentErrors.attack}</b></td>
-                        <td><b>${opponentErrors.foxl || opponentErrors.foul}</b></td>
+                        <td><b>${opponentErrors.foul}</b></td>
                         <td><b>${opponentErrors.other}</b></td>
                     </tr>
                 </tbody>
@@ -1238,7 +1272,7 @@ function exportReportAsPDF() {
 }
 
 function exportReportAsImageNotification() {
-    alert('💡 提示：在平板上，您可以使用內建的「螢幕截圖」功能將此報表畫面拍下來並存為照片，或點擊「匯出為 PDF」儲存檔案！');
+    alert('💡 提示：使用「螢幕截圖」功能將此報表畫面拍下來並存為照片，或點擊「匯出為 PDF」儲存檔案！');
 }
 
 function exportTeamsData() {
@@ -1302,7 +1336,7 @@ function renderScoringGroups() {
     const box = document.getElementById('scoring-groups');
     if (!box) return;
     box.innerHTML = '';
-    const icons = { "發球": "🏐", "攻擊": "💥", "吊球": "✨", "攔網": "🧱", "防守": "🛡️" };
+
     const makeRow = (title) => {
         const row = document.createElement('div');
         row.className = 'score-group';
@@ -1321,16 +1355,20 @@ function renderScoringGroups() {
         return b;
     };
     const cls = (item) => item.impact === 'our' ? 'is-gain' : item.impact === 'opponent' ? 'is-loss' : 'is-neutral';
-    const strip = (label) => label.replace(/^[^\s]+\s/, '');
 
     Object.keys(categoryDetails).filter(c => c !== "犯規" && c !== "其他失誤").forEach(cat => {
-        const btns = makeRow(`${icons[cat] || ''} ${cat}`);
-        categoryDetails[cat].forEach((item, i) => btns.appendChild(makeBtn(strip(item.label), cls(item), () => recordInline(cat, i))));
+        const btns = makeRow(cat);
+        categoryDetails[cat].forEach((item, i) => {
+            // 列標題已是類別名稱，按鈕只留差異字樣（攻擊得分 → 得分）
+            let text = item.label.replace(cat, '').trim();
+            if (!text || text.startsWith('+')) text = item.label;
+            btns.appendChild(makeBtn(text, cls(item), () => recordInline(cat, i)));
+        });
     });
 
     // 其他失誤 與 犯規 並列
-    const last = makeRow('⚠️ 失誤');
-    categoryDetails["其他失誤"].forEach((item, i) => last.appendChild(makeBtn('其他失誤', cls(item), () => recordInline("其他失誤", i))));
-    last.appendChild(makeBtn('犯規…', 'is-foul', () => openDetailModal('犯規')));
+    const last = makeRow('失誤');
+    categoryDetails["其他失誤"].forEach((item, i) => last.appendChild(makeBtn(item.label, cls(item), () => recordInline("其他失誤", i))));
+    last.appendChild(makeBtn('犯規', 'is-foul', () => openDetailModal('犯規')));
 }
 renderScoringGroups();

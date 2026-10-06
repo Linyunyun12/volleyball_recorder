@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>排球三局兩勝得失分與球員數據管理系統</title>
+    <title>Volleyball Recorder</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,8 +11,8 @@
 
     <!-- 頂部導覽列：分頁切換 -->
     <div class="nav-tabs no-print">
-        <button class="tab-btn active" onclick="switchTab('match-tab')">📊 比賽計分與輪轉</button>
-        <button class="tab-btn" onclick="switchTab('team-tab')">👥 多球隊與大名單管理</button>
+        <button class="tab-btn active" onclick="switchTab('match-tab')">比賽設定</button>
+        <button class="tab-btn" onclick="switchTab('team-tab')">球隊管理</button>
     </div>
 
     <!-- ==================== 分頁一：比賽計分與賽前檢錄 ==================== -->
@@ -28,8 +28,8 @@
                         <input type="date" id="match-date" style="padding: 10px; font-size:0.95rem;">
                     </div>
                     <div class="form-group" style="margin:0;">
-                        <label style="font-size:0.85rem;">🏆 盃賽/活動名稱</label>
-                        <input type="text" id="match-tournament" placeholder="例: 3S盃排球友誼賽" style="padding: 10px; font-size:0.95rem;">
+                        <label style="font-size:0.85rem;">盃賽名稱</label>
+                        <input type="text" id="match-tournament" placeholder="例: 友誼賽" style="padding: 10px; font-size:0.95rem;">
                     </div>
                     <div class="form-group" style="margin:0;">
                         <label style="font-size:0.85rem;">我方球隊</label>
@@ -46,16 +46,16 @@
             <div style="background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="margin:0; font-size:1.0rem; color:#334155; text-align:left;">
-                        2. 登錄球員檢錄 (最多 12 人，已選 <span id="selected-count" style="color:#2563eb;">0</span>/12 人)
+                        2. 登錄球員檢錄 (最多 12 人，已選 <span id="selected-count" style="color:#233f81;">0</span>/12 人)
                     </h3>
-                    <button class="btn-warning" style="padding: 8px 14px; font-size: 0.9rem;" onclick="openAttendanceModal()">📋 賽前點名與出缺席設定</button>
+                    <button class="btn-warning" style="padding: 8px 14px; font-size: 0.9rem;" onclick="openAttendanceModal()">賽前點名與出缺席設定</button>
                 </div>
                 <div id="roster-cards-container" class="roster-select-grid"></div>
 
                 <!-- 即時檢錄名單摘要按鈕與展開清單 -->
                 <div style="margin-top: 12px;">
                     <button class="btn-secondary" style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; font-size: 0.95rem;" onclick="toggleRosterSummary()">
-                        <span>📝 檢錄名單預覽與總人數</span>
+                        <span>檢錄名單預覽</span>
                         <span id="roster-summary-btn-text" style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; font-size: 0.85rem;">已選 0 人 ▾</span>
                     </button>
                     <div id="roster-summary-dropdown" style="display: none; background: white; padding: 12px; border: 1px solid #cbd5e1; border-top: none; border-radius: 0 0 8px 8px; font-size: 0.9rem; color: #1e293b;">
@@ -68,17 +68,17 @@
 
             <!-- 區塊三：卡通化 6 宮格站位指定先發 -->
             <div style="background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                <h3 style="margin-top:0; font-size:1.0rem; color:#334155; text-align:left;">3. 指定先發 6 人與站位 (點擊格子指派球員)</h3>
+                <h3 style="margin-top:0; font-size:1.0rem; color:#334155; text-align:left;">3. 指定先發站位</h3>
 
                 <div class="court-container" style="margin-bottom: 15px;">
-                    <div class="net-line">⚡ 網口 (Net) ⚡ - 前排網前</div>
+                    <div class="net-line" style="text-align:center;"> </div>
                     <div class="court-grid">
                         <div class="pregame-node"><div class="pos-tag">前左 (P4)</div><select id="sel-p4" class="pregame-select" onchange="validateLineupSelection()"></select></div>
                         <div class="pregame-node"><div class="pos-tag">前中 (P3)</div><select id="sel-p3" class="pregame-select" onchange="validateLineupSelection()"></select></div>
                         <div class="pregame-node"><div class="pos-tag">前右 (P2)</div><select id="sel-p2" class="pregame-select" onchange="validateLineupSelection()"></select></div>
                         <div class="pregame-node"><div class="pos-tag">後左 (P5)</div><select id="sel-p5" class="pregame-select" onchange="validateLineupSelection()"></select></div>
                         <div class="pregame-node"><div class="pos-tag">後中 (P6)</div><select id="sel-p6" class="pregame-select" onchange="validateLineupSelection()"></select></div>
-                        <div class="pregame-node is-server"><div class="pos-tag">後右 (P1) 🌟 發球位</div><select id="sel-p1" class="pregame-select" onchange="validateLineupSelection()"></select></div>
+                        <div class="pregame-node is-server"><div class="pos-tag">後右 (P1)發球位</div><select id="sel-p1" class="pregame-select" onchange="validateLineupSelection()"></select></div>
                     </div>
                 </div>
 
@@ -91,16 +91,16 @@
                 </div>
             </div>
 
-            <button class="btn-primary" style="font-size: 1.1rem; padding: 14px;" onclick="startMatch()">🚀 確認檢錄，開始比賽！</button>
+            <button class="btn-primary" style="font-size: 1.1rem; padding: 14px;" onclick="startMatch()">確認檢錄，開始比賽！</button>
         </div>
 
         <!-- 正式計分戰鬥區 -->
         <div id="in-game-section" style="display: none;">
             <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
-                <button class="btn-secondary" style="width: auto; padding: 8px 15px;" onclick="backToPregame()">⚙ 回到檢錄/修改</button>
+                <button class="btn-secondary" style="width: auto; padding: 8px 15px;" onclick="backToPregame()">⚙ 回到檢錄</button>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <h2 id="current-match-title" style="margin:0; font-size: 1.2rem;">🔥 比賽進行中</h2>
-                    <button class="btn-warning" style="padding: 4px 8px; font-size: 0.8rem;" onclick="openEditMatchInfoModal()">✏ 修改賽事資訊</button>
+                    <h2 id="current-match-title" style="margin:0; font-size: 1.2rem;">比賽進行中</h2>
+                    <button class="btn-warning" style="padding: 4px 8px; font-size: 0.8rem;" onclick="openEditMatchInfoModal()">修改</button>
                 </div>
                 <div style="display: flex; gap: 8px;">
                     <button class="btn-primary" style="width: auto; padding: 8px 15px;" onclick="openSummaryModal('set')">📊 單局數據報表</button>
@@ -135,10 +135,10 @@
             <!-- 站位圖與換人模式 -->
             <div class="court-container">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <div class="net-line" style="margin:0; border:none;">⚡ 網口 (Net) ⚡</div>
+                    <div class="net-line" style="margin:0; border:none; text-align:center;"> </div>
                     <div class="mode-actions">
-                        <button id="timeout-btn" class="btn-secondary" onclick="openTimeoutModal()">⏸️ 暫停</button>
-                        <button id="sub-mode-btn" class="btn-warning" style="padding: 6px 12px; font-size: 0.85rem;" onclick="toggleSubstituteMode()">🔄 模式：點擊球員計分</button>
+                        <button id="timeout-btn" class="btn-secondary" onclick="openTimeoutModal()">⏸暫停</button>
+                        <button id="sub-mode-btn" class="btn-warning" style="padding: 6px 12px; font-size: 0.85rem;" onclick="toggleSubstituteMode()">目前：點擊球員計分</button>
                     </div>
                 </div>
 
@@ -149,7 +149,7 @@
                     <div class="player-node" id="node-p5" onclick="handleCourtCardClick(4)"><div class="pos-tag">後左 (P5)</div><div class="player-name" id="disp-p5">-</div></div>
                     <div class="player-node" id="node-p6" onclick="handleCourtCardClick(5)"><div class="pos-tag">後中 (P6)</div><div class="player-name" id="disp-p6">-</div></div>
                     <div class="player-node" id="node-p1" onclick="handleCourtCardClick(0)">
-                        <div class="pos-tag">後右 (P1) 🌟</div>
+                        <div class="pos-tag">後右 (P1)</div>
                         <div class="player-name" id="disp-p1">-</div>
                         <div class="serve-badge-icon">🏐</div>
                     </div>
@@ -161,19 +161,19 @@
                 <!-- 目前選定操作的球員提示列與【恢復上一筆】 -->
                 <div class="card no-print" style="margin-bottom: 15px; background: #eff6ff; border: 2px solid #bfdbfe; display: flex; justify-content: space-between; align-items: center; padding: 12px;">
                         <span style="font-size: 1rem; font-weight: bold; color: #1e40af;">
-                            🎯 操作指定球員：<span id="selected-active-player" style="color: #2563eb; font-size: 1.1rem;">請點擊上方場上球員</span>
+                            🎯目前選定球員：<span id="selected-active-player" style="color: #2563eb; font-size: 1.1rem;">請點擊上方場上球員</span>
                         </span>
-                    <button class="btn-warning" style="padding: 8px 14px; font-size: 0.9rem; width: auto;" onclick="undoLast()">↩️ 恢復上一筆</button>
+                    <button class="btn-warning" style="padding: 8px 14px; font-size: 0.9rem; width: auto;" onclick="undoLast()">↩ CTRL+Z</button>
                 </div>
 
                 <!-- 現代化平板舒適大按鈕控制面板 -->
                 <div class="card no-print" style="margin-bottom: 20px;">
-                    <h3 style="margin-top:0; color: #1e293b; margin-bottom: 12px;">⚡ 記錄球員數據與得失分</h3>
+                    <h3 style="margin-top:0; color: #1e293b; margin-bottom: 12px;">記錄球員數據與得失分</h3>
 
                     <div class="scoring-layout">
                         <div id="scoring-groups"></div>
                         <aside class="opp-gifts">
-                            <div class="opp-gifts-title">🎁 對方失誤送分</div>
+                            <div class="opp-gifts-title">對方失誤送分</div>
                             <button class="score-btn is-gain" onclick="scorePoint('our', '對方發球失誤')">對方發球失誤</button>
                             <button class="score-btn is-gain" onclick="scorePoint('our', '對方攻擊失誤')">對方攻擊失誤</button>
                             <button class="score-btn is-gain" onclick="scorePoint('our', '對方犯規送分')">對方犯規送分</button>
@@ -191,15 +191,15 @@
 
             <!-- 底部危險按鈕 -->
             <div class="no-print" style="display: flex; justify-content: center; gap: 15px; margin-bottom: 20px;">
-                <button id="manual-rotate-btn" class="btn-secondary" style="padding: 6px 12px; font-size: 0.85rem; width: auto; background: #64748b;" onclick="manualRotateWithWarning()">🔄 手動輪轉一次</button>
-                <button id="reset-set-btn" class="btn-danger" style="padding: 6px 12px; font-size: 0.85rem; width: auto;" onclick="resetCurrentSetWithWarning()">🔄 重設本局</button>
+                <button id="manual-rotate-btn" class="btn-secondary" style="padding: 6px 12px; font-size: 0.85rem; width: auto; background: #64748b;" onclick="manualRotateWithWarning()">手動輪轉</button>
+                <button id="reset-set-btn" class="btn-danger" style="padding: 6px 12px; font-size: 0.85rem; width: auto;" onclick="resetCurrentSetWithWarning()">重設本局</button>
             </div>
         </div>
     </div>
 
     <!-- ==================== 分頁二：多球隊與大名單管理 ==================== -->
     <div id="team-tab" class="tab-content">
-        <h1>👥 多球隊與球員大名單管理</h1>
+        <h1>球隊管理</h1>
 
         <div class="card">
             <h3>球隊與資料同步操作</h3>
@@ -226,7 +226,7 @@
 
             <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 15px 0;">
 
-            <h3 id="form-title" style="margin-top: 0; color: #1e293b; font-size: 1.1rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">👤 新增球員到此球隊</h3>
+            <h3 id="form-title" style="margin-top: 0; color: #1e293b; font-size: 1.1rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">新增球員到此球隊</h3>
             <input type="hidden" id="edit-index" value="-1">
 
             <div style="display: grid; grid-template-columns: 100px 1fr; gap: 12px; margin-bottom: 15px;">
@@ -290,7 +290,7 @@
 <!-- 換人彈窗 Modal -->
 <div id="sub-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
     <div style="background:white; padding:25px; border-radius:12px; width:90%; max-width:400px; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
-        <h3>🔄 更換場上球員</h3>
+        <h3>更換場上球員</h3>
         <p id="sub-modal-desc" style="text-align:center; color:#64748b; font-size:0.9rem;"></p>
         <div class="form-group">
             <label>請選擇要替換上場的板凳球員：</label>
@@ -319,13 +319,13 @@
 <!-- 修改賽事資訊 Modal -->
 <div id="edit-match-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1600; justify-content:center; align-items:center;">
     <div style="background:white; padding:25px; border-radius:12px; width:90%; max-width:400px; box-shadow:0 4px 16px rgba(0,0,0,0.3);">
-        <h3 style="margin-top:0; color:#1e293b;">✏️ 修改賽事資訊</h3>
+        <h3 style="margin-top:0; color:#1e293b;">修改</h3>
         <div class="form-group">
-            <label>🏆 盃賽/活動名稱</label>
+            <label>盃賽名稱</label>
             <input type="text" id="edit-modal-tournament" style="padding:10px; font-size:1rem;">
         </div>
         <div class="form-group">
-            <label>⚔️ 對手隊伍名稱</label>
+            <label>對方名稱</label>
             <input type="text" id="edit-modal-opponent" style="padding:10px; font-size:1rem;">
         </div>
         <div style="display:flex; gap:10px; margin-top:20px;">
@@ -338,7 +338,7 @@
 <!-- 請求暫停記錄 Modal -->
 <div id="timeout-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1600; justify-content:center; align-items:center;">
     <div style="background:white; padding:25px; border-radius:12px; width:90%; max-width:400px; box-shadow:0 4px 16px rgba(0,0,0,0.3); text-align:center;">
-        <h3 style="margin-top:0; color:#1e293b;">⏸️ 記錄暫停</h3>
+        <h3 style="margin-top:0; color:#1e293b;">⏸記錄暫停</h3>
         <p id="timeout-score-desc" style="font-size: 1.1rem; font-weight: bold; color: #2563eb; margin: 10px 0;"></p>
         <div class="timeout-choices">
             <button class="btn-primary" onclick="confirmTimeout('我方')">我方暫停</button>
@@ -366,7 +366,7 @@
 
         <div style="margin-top:20px; display:flex; gap:10px; border-top:1px solid #e2e8f0; padding-top:15px;">
             <button class="btn-primary" style="flex:1;" onclick="exportReportAsPDF()">📄 匯出 / 儲存為 PDF</button>
-            <button class="btn-warning" style="flex:1;" onclick="exportReportAsImageNotification()">📷 匯出為圖片 (截圖建議)</button>
+            <button class="btn-warning" style="flex:1;" onclick="exportReportAsImageNotification()">📷 匯出為圖片 (截圖)</button>
             <button class="btn-secondary" style="flex:1;" onclick="closeSummaryModal()">返回比賽</button>
         </div>
     </div>
@@ -375,28 +375,28 @@
 <!-- 單局結束彈窗 Modal -->
 <div id="set-end-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:2000; justify-content:center; align-items:center;">
     <div style="background:white; padding:25px; border-radius:12px; width:95%; max-width:550px; text-align:center; box-shadow:0 8px 24px rgba(0,0,0,0.3); max-height:90vh; overflow-y:auto;">
-        <h2 id="set-end-title" style="color:#2563eb; margin-top:0;">🎉 第 1 局結束</h2>
+        <h2 id="set-end-title" style="color:#2563eb; margin-top:0;">🎉 第一局結束</h2>
         <p id="set-end-score" style="font-size: 1.3rem; font-weight: bold; margin: 10px 0; color:#0f172a;"></p>
         <p id="set-match-status" style="font-size: 1rem; color:#475569; margin-bottom:15px;"></p>
 
         <div id="next-set-lineup-preview" style="background:#f1f5f9; padding:15px; border-radius:8px; margin-bottom:20px; text-align:left;">
-            <div style="font-weight:bold; color:#334155; margin-bottom:8px; font-size:0.95rem;">🔄 下一局先發站位調整 (預設繼承上一局，可直接點擊下拉選單更動)：</div>
+            <div style="font-weight:bold; color:#334155; margin-bottom:8px; font-size:0.95rem;">下一局先發站位調整：</div>
 
             <div class="court-container" style="padding: 10px; margin-bottom: 0;">
-                <div class="net-line" style="font-size: 0.75rem; margin-bottom: 6px;">⚡ 網口 (Net) ⚡</div>
+                <div class="net-line" style="font-size: 0.75rem; margin-bottom: 6px; text-align:center;"> </div>
                 <div class="court-grid">
                     <div class="pregame-node"><div class="pos-tag">前左 (P4)</div><select id="next-sel-p4" class="pregame-select" onchange="validateNextLineupSelection()"></select></div>
                     <div class="pregame-node"><div class="pos-tag">前中 (P3)</div><select id="next-sel-p3" class="pregame-select" onchange="validateNextLineupSelection()"></select></div>
                     <div class="pregame-node"><div class="pos-tag">前右 (P2)</div><select id="next-sel-p2" class="pregame-select" onchange="validateNextLineupSelection()"></select></div>
                     <div class="pregame-node"><div class="pos-tag">後左 (P5)</div><select id="next-sel-p5" class="pregame-select" onchange="validateNextLineupSelection()"></select></div>
                     <div class="pregame-node"><div class="pos-tag">後中 (P6)</div><select id="next-sel-p6" class="pregame-select" onchange="validateNextLineupSelection()"></select></div>
-                    <div class="pregame-node is-server"><div class="pos-tag">後右 (P1) 🌟</div><select id="next-sel-p1" class="pregame-select" onchange="validateNextLineupSelection()"></select></div>
+                    <div class="pregame-node is-server"><div class="pos-tag">後右 (P1)</div><select id="next-sel-p1" class="pregame-select" onchange="validateNextLineupSelection()"></select></div>
                 </div>
             </div>
         </div>
 
         <div style="display:flex; flex-direction:column; gap:10px;">
-            <button id="next-set-btn" class="btn-success" style="padding:14px; font-size:1.1rem;" onclick="proceedToNextSet()">➡️ 確認站位，進入下一局</button>
+            <button id="next-set-btn" class="btn-success" style="padding:14px; font-size:1.1rem;" onclick="proceedToNextSet()">➡ 確認站位，進入下一局</button>
             <button class="btn-primary" style="padding:12px;" onclick="closeSetEndModal(); openSummaryModal('total');">📋 查看全場結算報表</button>
         </div>
     </div>
