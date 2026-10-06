@@ -12,9 +12,9 @@ let activeTeamName = "逢甲資工";
 
 let currentSet = 1;
 let matchSets = {
-    1: { ourScore: 0, opponentScore: 0, lineup: ["", "", "", "", "", ""], hasServe: true, historyLog: [], playerStats: {} },
-    2: { ourScore: 0, opponentScore: 0, lineup: ["", "", "", "", "", ""], hasServe: true, historyLog: [], playerStats: {} },
-    3: { ourScore: 0, opponentScore: 0, lineup: ["", "", "", "", "", ""], hasServe: true, historyLog: [], playerStats: {} }
+    1: { ourScore: 0, opponentScore: 0, lineup: ["", "", "", "", "", ""], hasServe: true, historyLog: [], playerStats: {}, substitutedPlayers: new Set(), isFinished: false },
+    2: { ourScore: 0, opponentScore: 0, lineup: ["", "", "", "", "", ""], hasServe: true, historyLog: [], playerStats: {}, substitutedPlayers: new Set(), isFinished: false },
+    3: { ourScore: 0, opponentScore: 0, lineup: ["", "", "", "", "", ""], hasServe: true, historyLog: [], playerStats: {}, substitutedPlayers: new Set(), isFinished: false }
 };
 
 let registeredPlayers = [];
@@ -23,9 +23,13 @@ let isSubstituteMode = false;
 let subPosIndex = null;
 let matchInfo = { date: "", tournament: "", opponent: "" };
 let attendanceStatus = {};
+let currentSummaryType = 'total';
+let matchSetWinners = {};
 
+// 💡 恢復「其他失誤」為需選定球員的失誤項目，直接讓對方得分
 const categoryDetails = {
     "發球": [
+        { label: "⚪ 發球次數", type: "attempt", impact: "none", reason: "發球次數", statKey: "serveAttempts" },
         { label: "🟢 發球得分 (Ace)", type: "score", impact: "our", reason: "發球得分", statKey: "serveAce" },
         { label: "🔴 發球失誤", type: "error", impact: "opponent", reason: "發球失誤", statKey: "serveError" }
     ],
@@ -37,24 +41,22 @@ const categoryDetails = {
         { label: "🟢 吊球得分", type: "score", impact: "our", reason: "吊球得分", statKey: "dropScore" },
         { label: "🔴 吊球失誤", type: "error", impact: "opponent", reason: "吊球失誤", statKey: "dropError" }
     ],
-    "接發": [
-        { label: "🔴 接發球失誤", type: "error", impact: "opponent", reason: "接發球失誤", statKey: "receiveServeError" }
+    "攔網": [
+        { label: "🟢 攔網得分 (Block)", type: "score", impact: "our", reason: "攔網得分", statKey: "blockScore" },
+        { label: "🔴 攔網失分", type: "error", impact: "opponent", reason: "攔網失分", statKey: "blockError" }
     ],
-    "接扣": [
-        { label: "🔴 接扣失誤", type: "error", impact: "opponent", reason: "接扣失誤", statKey: "receiveAttackError" }
+    "防守": [
+        { label: "🟢 防守到位/得分", type: "score", impact: "our", reason: "防守得分", statKey: "defenseScore" },
+        { label: "🔴 防守失誤 (接噴)", type: "error", impact: "opponent", reason: "防守失誤", statKey: "defenseError" }
     ],
-    "接吊": [
-        { label: "🔴 接吊失誤", type: "error", impact: "opponent", reason: "接吊失誤", statKey: "receiveDropError" }
-    ],
-    "二三傳": [
-        { label: "🔴 二三傳噴 (失誤)", type: "error", impact: "opponent", reason: "二三傳失誤", statKey: "setPassError" }
+    "其他失誤": [
+        { label: "🔴 其他失誤 (球員失誤失分)", type: "error", impact: "opponent", reason: "其他失誤", statKey: "otherError" }
     ],
     "犯規": [
-        { label: "⚠️ 二傳犯規", type: "error", impact: "opponent", reason: "二傳犯規", statKey: "foulDouble" },
         { label: "⚠️ 持球犯規", type: "error", impact: "opponent", reason: "持球犯規", statKey: "foulCarry" },
         { label: "⚠️ 二次犯規", type: "error", impact: "opponent", reason: "二次犯規", statKey: "foulDoubleHit" },
         { label: "⚠️ 觸網犯規", type: "error", impact: "opponent", reason: "觸網犯規", statKey: "foulNet" },
-        { label: "⚠️ 越界犯規", type: "error", impact: "opponent", reason: "越界犯規", statKey: "foulCrossing" }
+        { label: "⚠️️ 越界犯規", type: "error", impact: "opponent", reason: "越界犯規", statKey: "foulCrossing" }
     ]
 };
 
@@ -158,15 +160,20 @@ function onTeamChanged() {
     renderPregameCheckboxes();
 }
 
+function sortByNum(a, b) {
+    return parseInt(a.num || 0) - parseInt(b.num || 0);
+}
+
 function renderTeamTable() {
     activeTeamName = document.getElementById('manage-team-select').value;
     const tbody = document.getElementById('team-table-body');
     tbody.innerHTML = '';
 
-    const players = teamsData[activeTeamName] || [];
+    const players = [...(teamsData[activeTeamName] || [])].sort(sortByNum);
     document.getElementById('team-player-count').textContent = players.length;
 
-    players.forEach((p, idx) => {
+    players.forEach((p) => {
+        const realIdx = teamsData[activeTeamName].indexOf(p);
         let tr = document.createElement('tr');
         let posStr = (p.pos && p.pos.length > 0) ? p.pos.join(', ') : '未填';
         tr.innerHTML = `
@@ -174,8 +181,8 @@ function renderTeamTable() {
             <td>${p.name}</td>
             <td>${posStr}</td>
             <td>
-                <button class="btn-warning" style="padding:4px 8px; font-size:0.8rem; margin-right:5px;" onclick="editPlayer(${idx})">修改</button>
-                <button class="btn-danger" style="padding:4px 8px; font-size:0.8rem;" onclick="removePlayer(${idx})">刪除</button>
+                <button class="btn-warning" style="padding:4px 8px; font-size:0.8rem; margin-right:5px;" onclick="editPlayer(${realIdx})">修改</button>
+                <button class="btn-danger" style="padding:4px 8px; font-size:0.8rem;" onclick="removePlayer(${realIdx})">刪除</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -216,7 +223,16 @@ function savePlayerToTeam() {
 
     document.getElementById('p-num').value = '';
     document.getElementById('p-name').value = '';
-    checkboxes.forEach(cb => cb.checked = false);
+    checkboxes.forEach(cb => {
+        cb.checked = false;
+        cb.closest('.position-tag').classList.remove('checked');
+    });
+}
+
+function updateTagStyle(checkbox) {
+    const parentLabel = checkbox.closest('.position-tag');
+    if (checkbox.checked) parentLabel.classList.add('checked');
+    else parentLabel.classList.remove('checked');
 }
 
 function editPlayer(idx) {
@@ -225,10 +241,13 @@ function editPlayer(idx) {
     document.getElementById('p-name').value = player.name;
     document.getElementById('edit-index').value = idx;
 
-    const checkboxes = document.querySelectorAll('input[name="p-pos"]');
-    checkboxes.forEach(cb => { cb.checked = player.pos.includes(cb.value); });
+    document.querySelectorAll('input[name="p-pos"]').forEach(cb => {
+        let isMatch = player.pos.includes(cb.value);
+        cb.checked = isMatch;
+        updateTagStyle(cb);
+    });
 
-    document.getElementById('form-title').textContent = `修改球員資訊 (${player.num} ${player.name})`;
+    document.getElementById('form-title').textContent = `✏️ 修改球員資訊 (${player.num} ${player.name})`;
     document.getElementById('save-player-btn').textContent = "儲存修改";
     document.getElementById('cancel-edit-btn').style.display = "block";
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -238,9 +257,12 @@ function cancelEdit() {
     document.getElementById('edit-index').value = "-1";
     document.getElementById('p-num').value = '';
     document.getElementById('p-name').value = '';
-    document.querySelectorAll('input[name="p-pos"]').forEach(cb => cb.checked = false);
+    document.querySelectorAll('input[name="p-pos"]').forEach(cb => {
+        cb.checked = false;
+        cb.closest('.position-tag').classList.remove('checked');
+    });
 
-    document.getElementById('form-title').textContent = "新增球員到此球隊";
+    document.getElementById('form-title').textContent = "👤 新增球員到此球隊";
     document.getElementById('save-player-btn').textContent = "確認新增球員";
     document.getElementById('cancel-edit-btn').style.display = "none";
 }
@@ -254,20 +276,30 @@ function removePlayer(idx) {
     }
 }
 
-// 渲染檢錄卡片（帶有狀態圖示與禁選防呆，無 # 符號）
 function renderPregameCheckboxes() {
     const container = document.getElementById('roster-cards-container');
     container.innerHTML = '';
 
     const players = teamsData[activeTeamName] || [];
-    players.forEach((p, idx) => {
-        let card = document.createElement('div');
+    const statusPriority = { "可出賽": 1, "晚到": 2, "傷病": 3, "請假": 4 };
+
+    const sortedPlayersNode = [...players].map(p => {
+        let originalIdx = teamsData[activeTeamName].indexOf(p);
+        let pKey = `${p.num} ${p.name}`;
+        let status = attendanceStatus[pKey] || "可出賽";
+        return { p, originalIdx, priority: statusPriority[status] || 1, num: parseInt(p.num || 0) };
+    }).sort((a, b) => (a.priority !== b.priority) ? a.priority - b.priority : a.num - b.num);
+
+    sortedPlayersNode.forEach((item, sortedIdx) => {
+        let p = item.p;
+        let idx = item.originalIdx;
         let pKey = `${p.num} ${p.name}`;
         let status = attendanceStatus[pKey] || "可出賽";
 
-        let isChecked = idx < 12 && status !== "請假" && status !== "傷病";
-        let isDisabled = status === "請假" || status === "傷病";
+        let isDisabled = (status === "請假");
+        let isChecked = sortedIdx < 12 && !isDisabled;
 
+        let card = document.createElement('div');
         card.className = `roster-select-card ${isChecked ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}`;
         card.id = `roster-card-${idx}`;
 
@@ -278,14 +310,16 @@ function renderPregameCheckboxes() {
         else if (status === "傷病") { statusClass = "status-injury"; statusText = "🏥 傷病"; }
 
         let posStr = (p.pos && p.pos.length > 0) ? `(${p.pos.join('/')})` : '';
+
         card.innerHTML = `
             <input type="checkbox" id="chk-${idx}" value="${p.num} ${p.name}" ${isChecked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''} onchange="handleRosterCardChange(${idx})">
+            <div class="player-badge-pill" ${isDisabled ? 'style="background:#94a3b8;"' : ''}>${p.num}</div>
             <div class="roster-card-info" style="width:100%;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span class="roster-card-num">${p.num} ${p.name}</span>
+                <div class="roster-card-name" ${isDisabled ? 'style="color:#94a3b8; text-decoration:line-through;"' : ''}>${p.name}</div>
+                <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">
                     <span class="status-badge ${statusClass}">${statusText}</span>
+                    <span class="roster-card-pos">${posStr}</span>
                 </div>
-                <span class="roster-card-name">${posStr}</span>
             </div>
         `;
 
@@ -316,14 +350,9 @@ function handleRosterCardChange(idx) {
     updateSelectedCount();
 }
 
-// 控制檢錄名單預覽展開與清單條列
 function toggleRosterSummary() {
     const dropdown = document.getElementById('roster-summary-dropdown');
-    if (dropdown.style.display === 'none' || dropdown.style.display === '') {
-        dropdown.style.display = 'block';
-    } else {
-        dropdown.style.display = 'none';
-    }
+    dropdown.style.display = (dropdown.style.display === 'none' || dropdown.style.display === '') ? 'block' : 'none';
 }
 
 function updateSelectedCount() {
@@ -332,7 +361,6 @@ function updateSelectedCount() {
     document.getElementById('selected-count').textContent = count;
 
     registeredPlayers = Array.from(checkedBoxes).map(cb => cb.value);
-
     document.getElementById('roster-summary-btn-text').textContent = `已選 ${count} 人 ▾`;
 
     const listContainer = document.getElementById('roster-summary-list');
@@ -340,10 +368,19 @@ function updateSelectedCount() {
         listContainer.innerHTML = '<span style="color: #64748b; text-align: center;">尚未選取任何球員</span>';
     } else {
         listContainer.innerHTML = '';
-        registeredPlayers.forEach((pStr, idx) => {
+        registeredPlayers.forEach((pStr) => {
+            let parts = pStr.split(' ');
+            let pNum = parts[0];
+            let pName = parts.slice(1).join(' ');
+            let pKey = `${pNum} ${pName}`;
+            let status = attendanceStatus[pKey] || "可出賽";
+            let statusBadgeTag = "";
+            if (status === "傷病") statusBadgeTag = `<span style="background:#ede9fe; color:#5b21b6; font-size:0.75rem; padding:1px 5px; border-radius:4px; margin-left:6px; font-weight:bold;">🏥 傷病</span>`;
+            else if (status === "晚到") statusBadgeTag = `<span style="background:#fef3c7; color:#92400e; font-size:0.75rem; padding:1px 5px; border-radius:4px; margin-left:6px; font-weight:bold;">🟡 晚到</span>`;
+
             let row = document.createElement('div');
-            row.style.cssText = "display: flex; align-items: center; padding: 4px 8px; background: #f8fafc; border-radius: 4px; border-left: 3px solid #2563eb;";
-            row.innerHTML = `<span style="font-weight: bold; margin-right: 8px; color: #2563eb;">${idx+1}</span> <span>${pStr}</span>`;
+            row.style.cssText = "display: flex; align-items: center; padding: 6px 10px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6;";
+            row.innerHTML = `<span style="background:#334155; color:white; font-weight:bold; padding:2px 8px; border-radius:6px; margin-right:8px; font-size:0.85rem;">${pNum}</span> <span style="font-weight:600;">${pName}</span> ${statusBadgeTag}`;
             listContainer.appendChild(row);
         });
     }
@@ -353,21 +390,27 @@ function updateSelectedCount() {
 
 function updateLineupSelects(activePlayers) {
     const posIds = ["sel-p4", "sel-p3", "sel-p2", "sel-p5", "sel-p6", "sel-p1"];
-    posIds.forEach((id, idx) => {
+    posIds.forEach((id) => {
         const select = document.getElementById(id);
         if (select) {
-            select.innerHTML = activePlayers.length > 0
-                ? activePlayers.map((p, pIdx) => `<option value="${p}" ${pIdx === idx ? 'selected' : ''}>${p}</option>`).join('')
-                : '<option value="-">請先勾選球員</option>';
+            let currentVal = select.value;
+            let optionsHTML = '<option value="">-- 請選擇球員 --</option>';
+            activePlayers.forEach(p => {
+                let selectedAttr = (p === currentVal) ? 'selected' : '';
+                optionsHTML += `<option value="${p}" ${selectedAttr}>${p}</option>`;
+            });
+            select.innerHTML = optionsHTML;
         }
     });
 }
+
+function validateLineupSelection() {}
 
 function openAttendanceModal() {
     const container = document.getElementById('attendance-list-container');
     container.innerHTML = '';
 
-    const players = teamsData[activeTeamName] || [];
+    const players = [...(teamsData[activeTeamName] || [])].sort(sortByNum);
     if (players.length === 0) {
         container.innerHTML = '<p style="text-align:center; color:#64748b;">目前球隊沒有球員，請先至大名單新增！</p>';
         document.getElementById('attendance-modal').style.display = 'flex';
@@ -381,12 +424,15 @@ function openAttendanceModal() {
         let item = document.createElement('div');
         item.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:white; padding:8px 12px; border-radius:6px; border:1px solid #e2e8f0; margin-bottom:8px;";
         item.innerHTML = `
-            <span style="font-weight:bold; color:#1e293b;">${p.num} ${p.name}</span>
-            <select id="att-${p.num}-${p.name}" style="width:140px; padding:6px; font-size:0.9rem;" onchange="attendanceStatus['${pKey}'] = this.value">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span style="background:#334155; color:white; font-weight:bold; padding:2px 8px; border-radius:6px; font-size:0.85rem;">${p.num}</span>
+                <span style="font-weight:bold; color:#1e293b;">${p.name}</span>
+            </div>
+            <select id="att-${p.num}-${p.name}" style="width:130px; padding:6px; font-size:0.9rem;" onchange="attendanceStatus['${pKey}'] = this.value">
                 <option value="可出賽" ${attendanceStatus[pKey] === '可出賽' ? 'selected' : ''}>🟢 可出賽</option>
                 <option value="晚到" ${attendanceStatus[pKey] === '晚到' ? 'selected' : ''}>🟡 晚到</option>
-                <option value="請假" ${attendanceStatus[pKey] === '請假' ? 'selected' : ''}>🔴 請假</option>
                 <option value="傷病" ${attendanceStatus[pKey] === '傷病' ? 'selected' : ''}>🏥 傷病</option>
+                <option value="請假" ${attendanceStatus[pKey] === '請假' ? 'selected' : ''}>🔴 請假</option>
             </select>
         `;
         container.appendChild(item);
@@ -404,6 +450,65 @@ function confirmAttendance() {
     renderPregameCheckboxes();
 }
 
+function openEditMatchInfoModal() {
+    document.getElementById('edit-modal-tournament').value = matchInfo.tournament || '';
+    document.getElementById('edit-modal-opponent').value = matchInfo.opponent || '';
+    document.getElementById('edit-match-modal').style.display = 'flex';
+}
+
+function closeEditMatchInfoModal() {
+    document.getElementById('edit-match-modal').style.display = 'none';
+}
+
+function confirmEditMatchInfo() {
+    const newTournament = document.getElementById('edit-modal-tournament').value.trim();
+    const newOpponent = document.getElementById('edit-modal-opponent').value.trim();
+
+    if (newTournament) matchInfo.tournament = newTournament;
+    if (newOpponent) matchInfo.opponent = newOpponent;
+
+    document.getElementById('current-match-title').textContent = `🔥 [${matchInfo.tournament}] ${activeTeamName} v.s ${matchInfo.opponent}`;
+    document.getElementById('scoreboard-opp-name').textContent = `${matchInfo.opponent} 得分`;
+
+    closeEditMatchInfoModal();
+}
+
+// 💡 暫停記錄函式 (比分格式：我方:對方)
+function openTimeoutModal() {
+    const currentData = matchSets[currentSet];
+    if (currentData.isFinished) {
+        alert('此局已結束，無法記錄暫停！');
+        return;
+    }
+
+    document.getElementById('timeout-score-desc').textContent = `當前比分：${currentData.ourScore} : ${currentData.opponentScore} (我方 : 對手)`;
+    document.getElementById('timeout-modal').style.display = 'flex';
+}
+
+function closeTimeoutModal() {
+    document.getElementById('timeout-modal').style.display = 'none';
+}
+
+function confirmTimeout() {
+    const requester = document.getElementById('timeout-requester').value;
+    const currentData = matchSets[currentSet];
+
+    let logText = `[${currentData.ourScore}:${currentData.opponentScore}] ⏸️ 【暫停記錄】由 【${requester}】 提出暫停 (比分 ${currentData.ourScore}:${currentData.opponentScore})`;
+
+    currentData.historyLog.push({
+        team: 'info',
+        text: logText,
+        ourScore: currentData.ourScore,
+        opponentScore: currentData.opponentScore,
+        lineup: [...currentData.lineup],
+        hasServe: currentData.hasServe
+    });
+
+    closeTimeoutModal();
+    renderLogs();
+    alert(`✅ 已成功記錄：${requester}提出暫停（比分 ${currentData.ourScore}:${currentData.opponentScore}）`);
+}
+
 function startMatch() {
     const checkedBoxes = document.querySelectorAll('#roster-cards-container input[type="checkbox"]:checked');
     if (checkedBoxes.length < 6) { alert('先發陣容需要至少勾選 6 位登錄球員！'); return; }
@@ -415,8 +520,8 @@ function startMatch() {
     const p5 = document.getElementById('sel-p5').value;
     const p6 = document.getElementById('sel-p6').value;
 
-    if ([p1, p2, p3, p4, p5, p6].some(p => !p || p === '-' || p === '請先勾選球員')) {
-        alert('先發 6 人的場上位置（P1 ~ P6）尚未指派完整！');
+    if ([p1, p2, p3, p4, p5, p6].some(p => !p || p === '-')) {
+        alert('先發 6 人的場上位置（P1 ~ P6）尚未指派完整，請確認每格都已選擇球員！');
         return;
     }
 
@@ -426,22 +531,29 @@ function startMatch() {
 
     currentSet = 1;
     for (let s = 1; s <= 3; s++) {
+        let initialLineup = [p1, p2, p3, p4, p5, p6];
         matchSets[s] = {
             ourScore: 0,
             opponentScore: 0,
-            lineup: [p1, p2, p3, p4, p5, p6],
+            lineup: initialLineup,
             hasServe: (document.getElementById('initial-serve').value === 'our'),
             historyLog: [],
-            playerStats: {}
+            playerStats: {},
+            substitutedPlayers: new Set(),
+            isFinished: false
         };
+        initialLineup.forEach(p => matchSets[s].substitutedPlayers.add(p));
+
         registeredPlayers.forEach(pName => {
             matchSets[s].playerStats[pName] = {
                 serveAttempts: 0, serveAce: 0, serveError: 0,
-                attackAttempts: 0, attackScore: 0, attackError: 0,
-                dropAttempts: 0, dropScore: 0, dropError: 0,
-                receiveServeError: 0, receiveAttackError: 0, receiveDropError: 0,
-                setPassError: 0,
-                foulDouble: 0, foulCarry: 0, foulDoubleHit: 0, foulNet: 0, foulCrossing: 0
+                attackScore: 0, attackError: 0,
+                dropScore: 0, dropError: 0,
+                blockScore: 0, blockError: 0,
+                defenseScore: 0, defenseError: 0,
+                otherError: 0,
+                setAttempts: 0,
+                foulCarry: 0, foulDoubleHit: 0, foulNet: 0, foulCrossing: 0
             };
         });
     }
@@ -449,7 +561,6 @@ function startMatch() {
     document.getElementById('current-match-title').textContent = `🔥 [${matchInfo.tournament}] ${activeTeamName} v.s ${matchInfo.opponent}`;
     document.getElementById('scoreboard-our-name').textContent = `${activeTeamName} 得分`;
     document.getElementById('scoreboard-opp-name').textContent = `${matchInfo.opponent} 得分`;
-    document.getElementById('print-header-info').textContent = `日期：${matchInfo.date} | 盃賽：${matchInfo.tournament} | ${activeTeamName} v.s ${matchInfo.opponent}`;
 
     document.getElementById('pregame-section').style.display = 'none';
     document.getElementById('in-game-section').style.display = 'block';
@@ -465,6 +576,11 @@ function backToPregame() {
 }
 
 function switchSet(setNum) {
+    if (setNum > 1 && !matchSetWinners[setNum - 1]) {
+        alert('請先完成上一局的比賽與結算，才能解鎖並切換至此局！');
+        return;
+    }
+
     currentSet = setNum;
     for (let s = 1; s <= 3; s++) {
         const btn = document.getElementById(`set-btn-${s}`);
@@ -476,11 +592,17 @@ function switchSet(setNum) {
 }
 
 function toggleSubstituteMode() {
+    const currentData = matchSets[currentSet];
+    if (currentData.isFinished) {
+        alert('此局已結束，無法進行換人操作！');
+        return;
+    }
+
     isSubstituteMode = !isSubstituteMode;
     const btn = document.getElementById('sub-mode-btn');
     if (isSubstituteMode) {
         btn.textContent = "🔄 模式：點擊球員進行【換人】";
-        btn.style.background = "#dc2626";
+        btn.style.background = "#e11d48";
         btn.style.color = "white";
     } else {
         btn.textContent = "🔄 模式：點擊球員計分";
@@ -490,6 +612,9 @@ function toggleSubstituteMode() {
 }
 
 function handleCourtCardClick(posIdx) {
+    const currentData = matchSets[currentSet];
+    if (currentData.isFinished) return;
+
     if (isSubstituteMode) openSubstituteModal(posIdx);
     else setActivePlayer(posIdx);
 }
@@ -499,9 +624,9 @@ function setActivePlayer(index) {
     const currentData = matchSets[currentSet];
     for (let i = 0; i < 6; i++) {
         let node = document.getElementById(`node-p${i+1}`);
-        if (i === index) {
-            node.style.border = "3px solid #2563eb";
-            node.style.boxShadow = "0 0 10px rgba(37, 99, 235, 0.6)";
+        if (i === index && !currentData.isFinished) {
+            node.style.border = "3px solid #3b82f6";
+            node.style.boxShadow = "0 0 10px rgba(59, 130, 246, 0.5)";
         } else {
             node.style.border = "none";
             node.style.boxShadow = "";
@@ -525,9 +650,14 @@ function openSubstituteModal(posIdx) {
         select.innerHTML = '<option value="-">無其他可替換的登錄球員</option>';
     } else {
         availableBench.forEach(p => {
+            let parts = p.split(' ');
+            let pKey = `${parts[0]} ${parts.slice(1).join(' ')}`;
+            let status = attendanceStatus[pKey] || "可出賽";
+            let statusLabel = (status === "傷病") ? " [🏥 傷病]" : (status === "請假" ? " [🔴 請假]" : (status === "晚到" ? " [🟡 晚到]" : ""));
+
             let opt = document.createElement('option');
             opt.value = p;
-            opt.textContent = p;
+            opt.textContent = `${p}${statusLabel}`;
             select.appendChild(opt);
         });
     }
@@ -546,6 +676,7 @@ function confirmSubstitute() {
     const currentData = matchSets[currentSet];
     const outgoingPlayer = currentData.lineup[subPosIndex];
     currentData.lineup[subPosIndex] = incomingPlayer;
+    currentData.substitutedPlayers.add(incomingPlayer);
 
     currentData.historyLog.push({ team: 'info', text: `🔄 【第${currentSet}局換人】P${subPosIndex+1}: ${outgoingPlayer} 🔀 ${incomingPlayer}`, lineup: [...currentData.lineup], hasServe: currentData.hasServe });
     closeSubstituteModal();
@@ -556,6 +687,11 @@ function confirmSubstitute() {
 
 function openDetailModal(category) {
     const currentData = matchSets[currentSet];
+    if (currentData.isFinished) {
+        alert('此局已結束，無法記錄數據！');
+        return;
+    }
+
     const currentPlayer = currentData.lineup[activePlayerIndex];
     if (!currentPlayer || currentPlayer === '-') { alert('請先在上方點擊選擇一位場上球員！'); return; }
 
@@ -570,7 +706,7 @@ function openDetailModal(category) {
     details.forEach(item => {
         let btn = document.createElement('button');
         btn.textContent = item.label;
-        btn.className = item.impact === 'our' ? 'btn-success' : 'btn-danger';
+        btn.className = item.impact === 'our' ? 'btn-success' : (item.impact === 'opponent' ? 'btn-danger' : 'btn-secondary');
         btn.style.padding = '14px';
         btn.style.fontSize = '1.05rem';
         btn.onclick = () => {
@@ -588,15 +724,14 @@ function closeDetailModal() {
 
 function recordDetailedEvent(impactTeam, category, reason, statKey) {
     const currentData = matchSets[currentSet];
+    if (currentData.isFinished) return;
+
     const currentPlayer = currentData.lineup[activePlayerIndex];
     let rotatedThisPoint = false;
 
     if (currentData.playerStats[currentPlayer]) {
         if (statKey) {
             currentData.playerStats[currentPlayer][statKey]++;
-            if (category === '發球') currentData.playerStats[currentPlayer].serveAttempts++;
-            if (category === '攻擊') currentData.playerStats[currentPlayer].attackAttempts++;
-            if (category === '吊球') currentData.playerStats[currentPlayer].dropAttempts++;
         }
     }
 
@@ -607,12 +742,12 @@ function recordDetailedEvent(impactTeam, category, reason, statKey) {
             currentData.hasServe = true;
             rotatedThisPoint = true;
         }
-    } else {
+    } else if (impactTeam === 'opponent') {
         currentData.opponentScore++;
         currentData.hasServe = false;
     }
 
-    let logText = `[${currentData.ourScore}:${currentData.opponentScore}] ${impactTeam === 'our' ? '🟢 我方得分' : '🔴 對手得分'} - [${currentPlayer}] ${category}：${reason}`;
+    let logText = `[${currentData.ourScore}:${currentData.opponentScore}] ${impactTeam === 'our' ? '🟢 我方得分' : (impactTeam === 'opponent' ? '🔴 對手得分' : '⚪ 記錄次數')} - [${currentPlayer}] ${category}：${reason}`;
     if (rotatedThisPoint) logText += " ➔ 【順時針輪轉 🔄】";
 
     currentData.historyLog.push({ team: impactTeam, reason: `${category}-${reason}`, ourScore: currentData.ourScore, opponentScore: currentData.opponentScore, lineup: [...currentData.lineup], hasServe: currentData.hasServe, text: logText });
@@ -622,6 +757,8 @@ function recordDetailedEvent(impactTeam, category, reason, statKey) {
 
 function scorePoint(team, reason) {
     const currentData = matchSets[currentSet];
+    if (currentData.isFinished) return;
+
     let rotatedThisPoint = false;
     if (team === 'our') {
         currentData.ourScore++;
@@ -650,19 +787,92 @@ function checkSetWinCondition() {
     let opp = currentData.opponentScore;
 
     if ((our >= targetScore || opp >= targetScore) && Math.abs(our - opp) >= 2) {
-        let winner = our > opp ? activeTeamName : matchInfo.opponent;
+        currentData.isFinished = true;
+        let winnerKey = our > opp ? 'our' : 'opponent';
+        let winnerName = our > opp ? activeTeamName : matchInfo.opponent;
+        matchSetWinners[currentSet] = winnerKey;
+
         document.getElementById('set-end-title').textContent = `🎉 第 ${currentSet} 局結束！`;
         document.getElementById('set-end-score').textContent = `${activeTeamName} ${our} : ${opp} ${matchInfo.opponent}`;
-        document.getElementById('set-match-status').textContent = `本局由 【${winner}】 獲勝！`;
 
-        if (currentSet >= 3) {
+        let isStraightTwo = false;
+        if (currentSet === 2 && matchSetWinners[1] === matchSetWinners[2]) {
+            isStraightTwo = true;
+        }
+
+        if (isStraightTwo || currentSet >= 3) {
+            document.getElementById('set-match-status').textContent = `本局由 【${winnerName}】 獲勝！ 🏆 全場比賽已由 【${winnerName}】 取得勝利！`;
             document.getElementById('next-set-btn').style.display = 'none';
-            document.getElementById('set-match-status').textContent += ` 🏆 全場比賽結束！`;
+            document.getElementById('next-set-lineup-preview').style.display = 'none';
         } else {
+            document.getElementById('set-match-status').textContent = `本局由 【${winnerName}】 獲勝！準備進入下一局。`;
             document.getElementById('next-set-btn').style.display = 'block';
+            document.getElementById('next-set-lineup-preview').style.display = 'block';
+            populateNextSetLineupSelects();
         }
 
         document.getElementById('set-end-modal').style.display = 'flex';
+    }
+}
+
+function populateNextSetLineupSelects() {
+    const posIds = ["next-sel-p4", "next-sel-p3", "next-sel-p2", "next-sel-p5", "next-sel-p6", "next-sel-p1"];
+    const currentLineup = matchSets[currentSet].lineup;
+
+    posIds.forEach((id, idx) => {
+        const select = document.getElementById(id);
+        if (select) {
+            let optionsHTML = '<option value="">-- 請選擇球員 --</option>';
+            registeredPlayers.forEach(p => {
+                let selectedAttr = (p === currentLineup[idx]) ? 'selected' : '';
+                optionsHTML += `<option value="${p}" ${selectedAttr}>${p}</option>`;
+            });
+            select.innerHTML = optionsHTML;
+        }
+    });
+}
+
+function validateNextLineupSelection() {
+    const posIds = ["next-sel-p4", "next-sel-p3", "next-sel-p2", "next-sel-p5", "next-sel-p6", "next-sel-p1"];
+    let selectedValues = [];
+    posIds.forEach(id => {
+        let val = document.getElementById(id).value;
+        if (val) {
+            if (selectedValues.includes(val)) {
+                document.getElementById(id).value = "";
+            } else {
+                selectedValues.push(val);
+            }
+        }
+    });
+}
+
+function proceedToNextSet() {
+    const p1 = document.getElementById('next-sel-p1').value;
+    const p2 = document.getElementById('next-sel-p2').value;
+    const p3 = document.getElementById('next-sel-p3').value;
+    const p4 = document.getElementById('next-sel-p4').value;
+    const p5 = document.getElementById('next-sel-p5').value;
+    const p6 = document.getElementById('next-sel-p6').value;
+
+    if ([p1, p2, p3, p4, p5, p6].some(p => !p || p === '-')) {
+        alert('下一局的先發 6 人站位尚未指派完整，請確認每格都已選擇球員！');
+        return;
+    }
+
+    closeSetEndModal();
+    let nextSetNum = currentSet + 1;
+    if (nextSetNum <= 3) {
+        const nextBtn = document.getElementById(`set-btn-${nextSetNum}`);
+        nextBtn.disabled = false;
+        nextBtn.style.opacity = '1';
+        nextBtn.style.cursor = 'pointer';
+
+        let newLineup = [p1, p2, p3, p4, p5, p6];
+        matchSets[nextSetNum].lineup = newLineup;
+        newLineup.forEach(p => matchSets[nextSetNum].substitutedPlayers.add(p));
+
+        switchSet(nextSetNum);
     }
 }
 
@@ -670,18 +880,26 @@ function closeSetEndModal() {
     document.getElementById('set-end-modal').style.display = 'none';
 }
 
-function proceedToNextSet() {
-    closeSetEndModal();
-    if (currentSet < 3) {
-        switchSet(currentSet + 1);
+function manualRotateWithWarning() {
+    const currentData = matchSets[currentSet];
+    if (currentData.isFinished) { alert('此局已結束，無法手動輪轉！'); return; }
+
+    if (confirm('⚠️ 警告：確定要手動執行一次順時針輪轉嗎？')) {
+        rotateLineup();
+        currentData.historyLog.push({ team: 'info', text: `🔄 【手動輪轉】當前發球員變更為: ${currentData.lineup[0]}`, lineup: [...currentData.lineup], hasServe: currentData.hasServe });
+        updateUI();
     }
 }
 
-function manualRotate() {
+function resetCurrentSetWithWarning() {
     const currentData = matchSets[currentSet];
-    rotateLineup();
-    currentData.historyLog.push({ team: 'info', text: `🔄 【手動輪轉】當前發球員變更為: ${currentData.lineup[0]}`, lineup: [...currentData.lineup], hasServe: currentData.hasServe });
-    updateUI();
+    if (confirm(`⚠️ 警告：確定要完全重設第 ${currentSet} 局的得分與所有技術紀錄嗎？此動作無法復原！`)) {
+        currentData.ourScore = 0;
+        currentData.opponentScore = 0;
+        currentData.historyLog = [];
+        currentData.isFinished = false;
+        updateUI();
+    }
 }
 
 function rotateLineup() {
@@ -693,7 +911,12 @@ function rotateLineup() {
 
 function undoLast() {
     const currentData = matchSets[currentSet];
-    if (currentData.historyLog.length === 0) return;
+    if (currentData.isFinished) { alert('此局已結束，無法恢復上一筆！'); return; }
+
+    if (currentData.historyLog.length === 0) {
+        alert('目前沒有可以恢復的上一筆紀錄！');
+        return;
+    }
     currentData.historyLog.pop();
     if (currentData.historyLog.length > 0) {
         const prev = currentData.historyLog[currentData.historyLog.length - 1];
@@ -706,16 +929,6 @@ function undoLast() {
         currentData.opponentScore = 0;
     }
     updateUI();
-}
-
-function resetCurrentSet() {
-    if (confirm(`確定要重設第 ${currentSet} 局的得分與紀錄嗎？`)) {
-        const currentData = matchSets[currentSet];
-        currentData.ourScore = 0;
-        currentData.opponentScore = 0;
-        currentData.historyLog = [];
-        updateUI();
-    }
 }
 
 function updateUI() {
@@ -740,6 +953,22 @@ function updateUI() {
         badge.style.color = '#fff';
     }
 
+    const controlsPanel = document.getElementById('active-scoring-controls');
+    const rotateBtn = document.getElementById('manual-rotate-btn');
+    const resetBtn = document.getElementById('reset-set-btn');
+
+    if (currentData.isFinished) {
+        controlsPanel.style.opacity = '0.5';
+        controlsPanel.style.pointerEvents = 'none';
+        rotateBtn.style.opacity = '0.5';
+        rotateBtn.style.pointerEvents = 'none';
+    } else {
+        controlsPanel.style.opacity = '1';
+        controlsPanel.style.pointerEvents = 'auto';
+        rotateBtn.style.opacity = '1';
+        rotateBtn.style.pointerEvents = 'auto';
+    }
+
     setActivePlayer(activePlayerIndex);
     renderLogs();
 }
@@ -752,74 +981,186 @@ function renderLogs() {
         let div = document.createElement('div');
         div.className = 'log-item';
         div.textContent = item.text;
-        if (item.team === 'our') div.style.color = '#16a34a';
-        if (item.team === 'opponent') div.style.color = '#dc2626';
+        if (item.team === 'our') div.style.color = '#059669';
+        else if (item.team === 'opponent') div.style.color = '#e11d48';
+        else div.style.color = '#475569';
         box.appendChild(div);
     });
 }
 
-function openSummaryModal() {
-    const area = document.getElementById('summary-content-area');
-    area.innerHTML = '';
+function openSummaryModal(type = 'total') {
+    currentSummaryType = type;
+    updateSummaryModalTabs();
+    generateReportHTML();
+    document.getElementById('summary-modal').style.display = 'flex';
+}
 
-    let totalStats = {};
-    registeredPlayers.forEach(pName => {
-        totalStats[pName] = {
-            serveAttempts: 0, serveAce: 0, serveError: 0,
-            attackAttempts: 0, attackScore: 0, attackError: 0,
-            dropAttempts: 0, dropScore: 0, dropError: 0,
-            receiveServeError: 0, receiveAttackError: 0, receiveDropError: 0,
-            setPassError: 0,
-            foulDouble: 0, foulCarry: 0, foulDoubleHit: 0, foulNet: 0, foulCrossing: 0
-        };
-    });
+function switchSummaryMode(type) {
+    currentSummaryType = 'total';
+    updateSummaryModalTabs();
+    generateReportHTML();
+}
 
+function switchSummarySet(setNum) {
+    currentSummaryType = setNum;
+    updateSummaryModalTabs();
+    generateReportHTML();
+}
+
+function updateSummaryModalTabs() {
     for (let s = 1; s <= 3; s++) {
-        let pStats = matchSets[s].playerStats;
-        for (let pName in pStats) {
-            if (!totalStats[pName]) continue;
-            for (let key in pStats[pName]) {
-                totalStats[pName][key] += pStats[pName][key];
+        const btn = document.getElementById(`modal-tab-set${s}`);
+        if (currentSummaryType === s) btn.classList.add('active');
+        else btn.classList.remove('active');
+    }
+    const btnTotal = document.getElementById(`modal-tab-total`);
+    const title = document.getElementById('summary-modal-title');
+
+    if (currentSummaryType === 'total') {
+        btnTotal.classList.add('active');
+        title.textContent = `📋 全場賽後球員數據總合報表`;
+    } else {
+        btnTotal.classList.remove('active');
+        title.textContent = `📊 第 ${currentSummaryType} 局球員數據報表`;
+    }
+}
+
+function getSortedReportPlayers(targetSetNum = null) {
+    let activeLineup = [];
+    let substituted = new Set();
+
+    if (typeof targetSetNum === 'number') {
+        activeLineup = matchSets[targetSetNum].lineup || [];
+        substituted = matchSets[targetSetNum].substitutedPlayers || new Set();
+    } else {
+        for (let s = 1; s <= 3; s++) {
+            (matchSets[s].lineup || []).forEach(p => activeLineup.push(p));
+            if (matchSets[s].substitutedPlayers) {
+                matchSets[s].substitutedPlayers.forEach(p => substituted.add(p));
             }
         }
     }
 
+    let startingSix = [...new Set(activeLineup)].filter(Boolean);
+    let benchSubs = [...substituted].filter(p => !startingSix.includes(p));
+    let unplayed = registeredPlayers.filter(p => !startingSix.includes(p) && !benchSubs.includes(p));
+
+    const sortByNameNum = (a, b) => parseInt((a.split(' ')[0] || 0)) - parseInt((b.split(' ')[0] || 0));
+    startingSix.sort(sortByNameNum);
+    benchSubs.sort(sortByNameNum);
+    unplayed.sort(sortByNameNum);
+
+    return [...startingSix, ...benchSubs, ...unplayed];
+}
+
+// 💡 報表生成：加入「其他失誤」欄位呈現
+function generateReportHTML() {
+    const area = document.getElementById('summary-content-area');
+    area.innerHTML = '';
+
+    let statsToRender = {};
+    let setOurScore = 0;
+    let setOppScore = 0;
+    let opponentErrors = { serve: 0, attack: 0, foul: 0 };
+    let reportPlayers = [];
+
+    if (typeof currentSummaryType === 'number') {
+        statsToRender = matchSets[currentSummaryType].playerStats || {};
+        setOurScore = matchSets[currentSummaryType].ourScore;
+        setOppScore = matchSets[currentSummaryType].opponentScore;
+        reportPlayers = getSortedReportPlayers(currentSummaryType);
+
+        matchSets[currentSummaryType].historyLog.forEach(item => {
+            if (item.team === 'our') {
+                if (item.reason === '對方發球失誤') opponentErrors.serve++;
+                else if (item.reason === '對方攻擊失誤') opponentErrors.attack++;
+                else if (item.reason === '對方犯規送分') opponentErrors.foul++;
+            }
+        });
+    } else {
+        registeredPlayers.forEach(pName => {
+            statsToRender[pName] = {
+                serveAttempts: 0, serveAce: 0, serveError: 0,
+                attackScore: 0, attackError: 0,
+                dropScore: 0, dropError: 0,
+                blockScore: 0, blockError: 0,
+                defenseScore: 0, defenseError: 0,
+                otherError: 0,
+                foulCarry: 0, foulDoubleHit: 0, foulNet: 0, foulCrossing: 0
+            };
+        });
+
+        for (let s = 1; s <= 3; s++) {
+            let pStats = matchSets[s].playerStats;
+            for (let pName in pStats) {
+                if (!statsToRender[pName]) continue;
+                for (let key in pStats[pName]) {
+                    statsToRender[pName][key] += pStats[pName][key];
+                }
+            }
+            matchSets[s].historyLog.forEach(item => {
+                if (item.team === 'our') {
+                    if (item.reason === '對方發球失誤') opponentErrors.serve++;
+                    else if (item.reason === '對方攻擊失誤') opponentErrors.attack++;
+                    else if (item.reason === '對方犯規送分') opponentErrors.foul++;
+                }
+            });
+        }
+
+        for (let s = 1; s <= 3; s++) {
+            setOurScore += matchSets[s].ourScore;
+            setOppScore += matchSets[s].opponentScore;
+        }
+        reportPlayers = getSortedReportPlayers();
+    }
+
+    let setLabelStr = (typeof currentSummaryType === 'number') ? `第 ${currentSummaryType} 局` : `全場總計`;
+    let nextSetQuickBtn = "";
+    if (typeof currentSummaryType === 'number' && currentSummaryType < 3 && matchSetWinners[currentSummaryType]) {
+        nextSetQuickBtn = `<button class="btn-success" style="padding:6px 12px; font-size:0.85rem;" onclick="closeSummaryModal(); switchSet(${currentSummaryType + 1});">➡️ 進入第 ${currentSummaryType + 1} 局</button>`;
+    }
+
     let html = `
-        <div style="display:flex; justify-content:space-between; align-items:center; background:#f1f5f9; padding:10px 15px; border-radius:8px; margin-bottom:15px; font-weight:bold; font-size:0.95rem;">
-            <div>📅 日期：${matchInfo.date}</div>
-            <div>🏆 比賽：${matchInfo.tournament}</div>
-            <div>⚔️ 對戰：${activeTeamName} v.s ${matchInfo.opponent}</div>
+        <div style="background:#f1f5f9; padding:10px 15px; border-radius:8px; margin-bottom:15px; font-weight:bold; font-size:0.95rem; border:1px solid #cbd5e1; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div>📅 日期：${matchInfo.date || '未填'} | 🏆 比賽：${matchInfo.tournament || '友誼賽'} | 逢甲資工 v.s ${matchInfo.opponent || '對手'} | 📌 ${setLabelStr} | 📊 比分：${setOurScore} : ${setOppScore}</div>
+            <div>${nextSetQuickBtn}</div>
         </div>
         <div style="overflow-x:auto;">
             <table class="paper-matrix-table">
                 <thead>
                     <tr>
-                        <th rowspan="2">號碼</th>
-                        <th rowspan="2">球員姓名</th>
+                        <th rowspan="2" style="width: 45px;">號碼</th>
+                        <th rowspan="2" style="width: 95px;">球員姓名</th>
                         <th colspan="3">發球</th>
-                        <th colspan="3">攻擊</th>
-                        <th colspan="3">吊球</th>
-                        <th colspan="2">接發</th>
-                        <th colspan="2">接扣</th>
-                        <th colspan="2">接吊</th>
-                        <th rowspan="2">二傳</th>
+                        <th colspan="2">攻擊</th>
+                        <th colspan="2">吊球</th>
+                        <th colspan="2">攔網</th>
+                        <th colspan="2">防守</th>
+                        <th rowspan="2" style="width: 35px;">其他<br>失誤</th>
                         <th colspan="4">犯規</th>
                     </tr>
                     <tr>
-                        <th>次</th><th>得</th><th>失</th>
-                        <th>次</th><th>得</th><th>失</th>
-                        <th>次</th><th>得</th><th>失</th>
-                        <th>次</th><th>失</th>
-                        <th>次</th><th>失</th>
-                        <th>次</th><th>失</th>
-                        <th>持球</th><th>二次</th><th>觸網</th><th>越界</th>
+                        <th style="width: 30px;">次</th><th style="width: 30px;">得</th><th style="width: 30px;">失</th>
+                        <th style="width: 30px;">得</th><th style="width: 30px;">失</th>
+                        <th style="width: 30px;">得</th><th style="width: 30px;">失</th>
+                        <th style="width: 30px;">得</th><th style="width: 30px;">失</th>
+                        <th style="width: 30px;">得</th><th style="width: 30px;">失</th>
+                        <th style="width: 35px;">持球</th><th style="width: 35px;">二次</th><th style="width: 35px;">觸網</th><th style="width: 35px;">越界</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
 
-    registeredPlayers.forEach(pName => {
-        let st = totalStats[pName];
+    reportPlayers.forEach(pName => {
+        let st = statsToRender[pName] || {
+            serveAttempts: 0, serveAce: 0, serveError: 0,
+            attackScore: 0, attackError: 0,
+            dropScore: 0, dropError: 0,
+            blockScore: 0, blockError: 0,
+            defenseScore: 0, defenseError: 0,
+            otherError: 0,
+            foulCarry: 0, foulDoubleHit: 0, foulNet: 0, foulCrossing: 0
+        };
         let parts = pName.split(' ');
         let num = parts[0] || '';
         let name = parts.slice(1).join(' ') || pName;
@@ -829,12 +1170,11 @@ function openSummaryModal() {
                 <td><b>${num}</b></td>
                 <td style="text-align:left; padding-left:6px;">${name}</td>
                 <td>${st.serveAttempts}</td><td>${st.serveAce}</td><td>${st.serveError}</td>
-                <td>${st.attackAttempts}</td><td>${st.attackScore}</td><td>${st.attackError}</td>
-                <td>${st.dropAttempts}</td><td>${st.dropScore}</td><td>${st.dropError}</td>
-                <td>-</td><td>${st.receiveServeError}</td>
-                <td>-</td><td>${st.receiveAttackError}</td>
-                <td>-</td><td>${st.receiveDropError}</td>
-                <td>${st.setPassError}</td>
+                <td>${st.attackScore}</td><td>${st.attackError}</td>
+                <td>${st.dropScore}</td><td>${st.dropError}</td>
+                <td>${st.blockScore}</td><td>${st.blockError}</td>
+                <td>${st.defenseScore}</td><td>${st.defenseError}</td>
+                <td>${st.otherError}</td>
                 <td>${st.foulCarry}</td><td>${st.foulDoubleHit}</td><td>${st.foulNet}</td><td>${st.foulCrossing}</td>
             </tr>
         `;
@@ -846,32 +1186,31 @@ function openSummaryModal() {
         </div>
     `;
 
-    let totalOurScore = matchSets[1].ourScore + matchSets[2].ourScore + matchSets[3].ourScore;
-    let totalOppScore = matchSets[1].opponentScore + matchSets[2].opponentScore + matchSets[3].opponentScore;
-
     html += `
-        <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:15px; margin-top:20px;">
-            <table class="paper-matrix-table">
+        <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:15px; margin-top:15px;">
+            <table class="paper-matrix-table" style="table-layout: auto;">
                 <thead>
-                    <tr><th colspan="2">${activeTeamName}</th></tr>
+                    <tr><th colspan="2">逢甲資訊</th></tr>
                     <tr><th>得分</th><th>失誤</th></tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td style="font-size:1.2rem; font-weight:bold; color:#16a34a;">${totalOurScore}</td>
-                        <td style="font-size:1.2rem; font-weight:bold; color:#dc2626;">${totalOppScore}</td>
+                        <td style="font-size:1.1rem; font-weight:bold; color:#059669;">${setOurScore}</td>
+                        <td style="font-size:1.1rem; font-weight:bold; color:#e11d48;">${setOppScore}</td>
                     </tr>
                 </tbody>
             </table>
 
-            <table class="paper-matrix-table">
+            <table class="paper-matrix-table" style="table-layout: auto;">
                 <thead>
-                    <tr><th colspan="4">${matchInfo.opponent}失誤統計</th></tr>
-                    <tr><th>發球失誤</th><th>二、三傳噴</th><th>攻擊失誤</th><th>犯規</th></tr>
+                    <tr><th colspan="3">對方失誤</th></tr>
+                    <tr><th>發球失誤</th><th>攻擊失誤</th><th>犯規</th></tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td>-</td><td>-</td><td>-</td><td>-</td>
+                        <td><b>${opponentErrors.serve}</b></td>
+                        <td><b>${opponentErrors.attack}</b></td>
+                        <td><b>${opponentErrors.foxl || opponentErrors.foul}</b></td>
                     </tr>
                 </tbody>
             </table>
@@ -879,20 +1218,35 @@ function openSummaryModal() {
     `;
 
     area.innerHTML = html;
-    document.getElementById('summary-modal').style.display = 'flex';
 }
 
 function closeSummaryModal() {
     document.getElementById('summary-modal').style.display = 'none';
 }
 
+function exportReportAsPDF() {
+    window.print();
+}
+
+function exportReportAsImageNotification() {
+    alert('💡 提示：在平板上，您可以使用內建的「螢幕截圖」功能將此報表畫面拍下來並存為照片，或點擊「匯出為 PDF」儲存檔案！');
+}
+
 function exportTeamsData() {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(teamsData, null, 2));
+    if (!activeTeamName || !teamsData[activeTeamName]) {
+        alert('目前沒有選定有效的球隊可供匯出！');
+        return;
+    }
+
+    const singleTeamData = { [activeTeamName]: teamsData[activeTeamName] };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(singleTeamData, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
+
     const dateObj = new Date();
     const dateStr = `${dateObj.getFullYear()}${String(dateObj.getMonth()+1).padStart(2,'0')}${String(dateObj.getDate()).padStart(2,'0')}`;
-    downloadAnchor.setAttribute("download", `volleyball_teams_${dateStr}.json`);
+    downloadAnchor.setAttribute("download", `volleyball_team_${activeTeamName}_${dateStr}.json`);
+
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
