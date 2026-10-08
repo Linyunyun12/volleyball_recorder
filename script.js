@@ -10,6 +10,7 @@ const presetSixPlayers = [
 // ==================== 常數 ====================
 const STORAGE_KEY = 'volleyball_teams_data';
 const DEFAULT_TEAM_NAME = "我的球隊";
+const MATCHES_KEY = 'volleyball_matches_data';   // 已儲存的賽事紀錄
 
 // ==================== 資料結構工廠 ====================
 // 每位球員在單局內的數據欄位（全部歸零）
@@ -36,7 +37,10 @@ function createSetState(lineup = ["", "", "", "", "", ""], hasServe = true) {
         historyLog: [],
         playerStats: {},
         substitutedPlayers: new Set(),
-        isFinished: false
+        isFinished: false,
+        startLineup: [...lineup],     // 本局開場站位（還原 / 重設本局用）
+        startHasServe: hasServe,      // 本局開場發球權
+        serveSet: false               // 本局發球權是否已由使用者確認
     };
 }
 
@@ -51,6 +55,9 @@ let currentSet = 1;
 let matchSets = { 1: createSetState(), 2: createSetState(), 3: createSetState() };
 let matchSetWinners = {};
 let matchStartLineup = ["", "", "", "", "", ""];   // 賽前設定的先發站位 [P1..P6]（局間預設）
+let currentMatchId = null;      // 目前這場賽事的儲存 ID
+let viewingHistory = false;     // 是否正在檢視「賽事管理」的歷史紀錄
+let viewBackup = null;          // 檢視歷史前，暫存目前比賽的全域狀態
 
 // 球員與場上操作
 let registeredPlayers = [];
@@ -103,13 +110,17 @@ window.onload = function() {
     renderPregameCheckboxes();
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('match-date').value = today;
+    syncFullscreenButton();
 };
 
 function switchTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-tabs .tab-btn').forEach(el => {
+        el.classList.toggle('active', el.dataset.tab === tabId);
+    });
     document.getElementById(tabId).classList.add('active');
-    event.currentTarget.classList.add('active');
+    if (tabId === 'history-tab') renderMatchHistory();
+    window.scrollTo(0, 0);
 }
 
 function saveAllData() {
@@ -466,12 +477,17 @@ function resetNextLineupToStart() {
 }
 
 // ==================== 全螢幕 ====================
+// 優先使用瀏覽器原生全螢幕；不支援（例如 iPhone Safari）時退回「偽全螢幕」（收緊版面）。
+function isRealFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+
 function toggleFullscreen() {
     const el = document.documentElement;
-    const isFs = document.fullscreenElement || document.webkitFullscreenElement;
 
-    if (isFs) {
-        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    if (isRealFullscreen()) {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exit) { try { const p = exit.call(document); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
         return;
     }
     if (document.body.classList.contains('pseudo-fs')) {
@@ -484,18 +500,32 @@ function toggleFullscreen() {
     const fallback = () => { document.body.classList.add('pseudo-fs'); syncFullscreenButton(); };
     if (!req) { fallback(); return; }
     try {
-        const p = req.call(el);
+        const p = req.call(el, { navigationUI: 'hide' });
         if (p && p.catch) p.catch(fallback);
     } catch (e) { fallback(); }
 }
 
 function syncFullscreenButton() {
-    const isFs = document.fullscreenElement || document.webkitFullscreenElement || document.body.classList.contains('pseudo-fs');
+    const real = isRealFullscreen();
+    // 原生全螢幕成功後，清掉殘留的偽全螢幕旗標
+    if (real) document.body.classList.remove('pseudo-fs');
+    const on = real || document.body.classList.contains('pseudo-fs');
+    document.body.classList.toggle('is-fs', on);
     const btn = document.getElementById('fullscreen-btn');
-    if (btn) btn.textContent = isFs ? '✕ 退出全螢幕' : '⛶ 全螢幕';
+    if (btn) {
+        btn.innerHTML = on ? '<span class="fs-icon">✕</span><span class="fs-text"> 退出全螢幕</span>'
+            : '<span class="fs-icon">⛶</span><span class="fs-text"> 全螢幕</span>';
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
 }
 document.addEventListener('fullscreenchange', syncFullscreenButton);
 document.addEventListener('webkitfullscreenchange', syncFullscreenButton);
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.body.classList.contains('pseudo-fs')) {
+        document.body.classList.remove('pseudo-fs');
+        syncFullscreenButton();
+    }
+});
 
 function openAttendanceModal() {
     const container = document.getElementById('attendance-list-container');
@@ -628,10 +658,15 @@ function startMatch() {
     }
 
     currentSet = 1;
+    currentMatchId = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     matchStartLineup = [p1, p2, p3, p4, p5, p6];
+    const firstServeOur = document.getElementById('initial-serve').value === 'our';
     for (let s = 1; s <= 3; s++) {
         let initialLineup = [p1, p2, p3, p4, p5, p6];
-        matchSets[s] = createSetState(initialLineup, document.getElementById('initial-serve').value === 'our');
+        // 第 1 局：賽前選擇；第 2 局：預設與第 1 局相反（換邊先發）；第 3 局：進入前必須重新決定（見局間視窗）
+        const serveForSet = (s === 2) ? !firstServeOur : firstServeOur;
+        matchSets[s] = createSetState(initialLineup, serveForSet);
+        matchSets[s].serveSet = (s === 1);
         initialLineup.forEach(p => matchSets[s].substitutedPlayers.add(p));
 
         registeredPlayers.forEach(pName => {
@@ -882,6 +917,8 @@ function checkSetWinCondition() {
     if ((our >= targetScore || opp >= targetScore) && Math.abs(our - opp) >= 2) {
         currentData.isFinished = true;
         matchSetWinners[currentSet] = our > opp ? 'our' : 'opponent';
+        updateUI();   // 先刷新：鎖定計分面板 + 顯示「確認下一局」提示列，之後關掉彈窗也找得到入口
+        saveCurrentMatch(true);   // 每局結束自動存檔到「賽事管理」
         showSetEndModal(currentSet);
     }
 }
@@ -897,18 +934,95 @@ function showSetEndModal(setNum) {
     document.getElementById('set-end-title').textContent = `🎉 第 ${setNum} 局結束！`;
     document.getElementById('set-end-score').textContent = `${activeTeamName} ${our} : ${opp} ${matchInfo.opponent}`;
 
+    const saveBtn = document.getElementById('save-match-btn');
     if (isMatchOverAfterSet(setNum)) {
         document.getElementById('set-match-status').textContent = `本局由 【${winnerName}】 獲勝！ 🏆 全場比賽已由 【${winnerName}】 取得勝利！`;
         document.getElementById('next-set-btn').style.display = 'none';
         document.getElementById('next-set-lineup-preview').style.display = 'none';
+        if (saveBtn) saveBtn.style.display = 'block';
     } else {
+        if (saveBtn) saveBtn.style.display = 'none';
+        setupNextServeSelector(setNum + 1);
         document.getElementById('set-match-status').textContent = `本局由 【${winnerName}】 獲勝！準備進入下一局。`;
         document.getElementById('next-set-btn').style.display = 'block';
         document.getElementById('next-set-lineup-preview').style.display = 'block';
         populateNextSetLineupSelects();
     }
 
+    const closeBtn = document.getElementById('set-end-close-btn');
+    if (closeBtn) closeBtn.textContent = isMatchOverAfterSet(setNum) ? '關閉' : '先關閉，稍後再確認';
+
     document.getElementById('set-end-modal').style.display = 'flex';
+}
+
+// 下一局發球權選擇器：第 2 局預設與第 1 局相反；第 3 局沒有預設，必須重新選擇
+function setupNextServeSelector(nextNum) {
+    const sel = document.getElementById('next-set-serve');
+    const label = document.getElementById('next-serve-label');
+    const hint = document.getElementById('next-serve-hint');
+    if (!sel) return;
+    label.textContent = `第 ${nextNum} 局誰先發球？`;
+
+    const nd = matchSets[nextNum];
+    let value = '';
+    if (nd.serveSet) {
+        value = nd.hasServe ? 'our' : 'opponent';
+    } else if (nextNum === 2) {
+        value = matchSets[1].startHasServe ? 'opponent' : 'our';
+    }
+    sel.value = value;
+    hint.textContent = nextNum === 3
+        ? '第 3 局（決勝局）需重新猜拳決定發球權，請依實際結果選擇。'
+        : '依規則預設為第 1 局先接發球的一方先發球，可依實際狀況修改。';
+    sel.classList.toggle('need-choice', !value);
+}
+
+// 回傳「已結束、但下一局尚未解鎖」的局數；沒有則回傳 null
+function getPendingNextSet() {
+    for (let s = 1; s <= 2; s++) {
+        if (matchSetWinners[s] && !isMatchOverAfterSet(s)) {
+            const nextBtn = document.getElementById(`set-btn-${s + 1}`);
+            if (nextBtn && nextBtn.disabled) return s;
+        }
+    }
+    return null;
+}
+
+// 局間提示列：看完報表、關掉彈窗後，仍有明顯的入口可確認下一局站位
+function updateNextSetBanner() {
+    const el = document.getElementById('next-set-banner');
+    if (!el) return;
+
+    const pending = getPendingNextSet();
+    let overSet = null;
+    for (let s = 1; s <= 3; s++) {
+        if (matchSetWinners[s] && isMatchOverAfterSet(s)) overSet = s;
+    }
+
+    if (pending) {
+        const d = matchSets[pending];
+        el.className = 'next-set-banner no-print';
+        el.innerHTML = `
+            <div class="nsb-text">第 ${pending} 局已結束（${d.ourScore} : ${d.opponentScore}），尚未進入第 ${pending + 1} 局</div>
+            <div class="nsb-actions">
+                <button class="btn-success" onclick="showSetEndModal(${pending})">➡ 確認第 ${pending + 1} 局站位並開始</button>
+                <button class="btn-primary" onclick="openSummaryModal(${pending})">📊 查看本局報表</button>
+            </div>`;
+        el.style.display = 'flex';
+    } else if (overSet) {
+        const d = matchSets[overSet];
+        el.className = 'next-set-banner is-final no-print';
+        el.innerHTML = `
+            <div class="nsb-text">🏆 全場比賽已結束（第 ${overSet} 局 ${d.ourScore} : ${d.opponentScore}）</div>
+            <div class="nsb-actions">
+                <button class="btn-success" onclick="openSummaryModal('total')">📋 查看全場報表</button>
+                <button class="btn-primary" onclick="saveAndOpenHistory()">📁 儲存並前往賽事管理</button>
+            </div>`;
+        el.style.display = 'flex';
+    } else {
+        el.style.display = 'none';
+        el.innerHTML = '';
+    }
 }
 
 function populateNextSetLineupSelects() {
@@ -958,8 +1072,15 @@ function proceedToNextSet() {
         return;
     }
 
-    closeSetEndModal();
     let nextSetNum = setEndSetNum + 1;
+    const serveChoice = document.getElementById('next-set-serve').value;
+    if (!serveChoice) {
+        alert(`請先選擇第 ${nextSetNum} 局的發球權（誰先發球）！`);
+        document.getElementById('next-set-serve').focus();
+        return;
+    }
+
+    closeSetEndModal();
     if (nextSetNum <= 3) {
         const nextBtn = document.getElementById(`set-btn-${nextSetNum}`);
         nextBtn.disabled = false;
@@ -968,7 +1089,11 @@ function proceedToNextSet() {
 
         let newLineup = [p1, p2, p3, p4, p5, p6];
         matchSets[nextSetNum].lineup = newLineup;
-        newLineup.forEach(p => matchSets[nextSetNum].substitutedPlayers.add(p));
+        matchSets[nextSetNum].startLineup = [...newLineup];
+        matchSets[nextSetNum].substitutedPlayers = new Set(newLineup);
+        matchSets[nextSetNum].hasServe = (serveChoice === 'our');
+        matchSets[nextSetNum].startHasServe = (serveChoice === 'our');
+        matchSets[nextSetNum].serveSet = true;
 
         switchSet(nextSetNum);
     }
@@ -997,6 +1122,12 @@ function resetCurrentSetWithWarning() {
         currentData.opponentScore = 0;
         currentData.historyLog = [];
         currentData.isFinished = false;
+        // 連同球員技術數據、站位、發球權一起還原到本局開場狀態
+        currentData.lineup = [...currentData.startLineup];
+        currentData.hasServe = currentData.startHasServe;
+        currentData.substitutedPlayers = new Set(currentData.startLineup);
+        currentData.playerStats = {};
+        registeredPlayers.forEach(pName => { currentData.playerStats[pName] = createPlayerStats(); });
         updateUI();
     }
 }
@@ -1031,6 +1162,8 @@ function undoLast() {
     } else {
         currentData.ourScore = 0;
         currentData.opponentScore = 0;
+        currentData.lineup = [...currentData.startLineup];
+        currentData.hasServe = currentData.startHasServe;
     }
     updateUI();
 }
@@ -1075,6 +1208,7 @@ function updateUI() {
 
     setActivePlayer(activePlayerIndex);
     renderLogs();
+    updateNextSetBanner();
 }
 
 function renderLogs() {
@@ -1097,6 +1231,8 @@ function openSummaryModal(type = 'total') {
     currentSummaryType = type;
     updateSummaryModalTabs();
     generateReportHTML();
+    const backBtn = document.getElementById('summary-back-btn');
+    if (backBtn) backBtn.textContent = viewingHistory ? '關閉' : '返回比賽';
     document.getElementById('summary-modal').style.display = 'flex';
 }
 
@@ -1235,13 +1371,20 @@ function generateReportHTML(opts = {}) {
 
     let setLabelStr = (typeof currentSummaryType === 'number') ? `第 ${currentSummaryType} 局` : `全場總計`;
     let nextSetQuickBtn = "";
-    if (typeof currentSummaryType === 'number' && currentSummaryType < 3
+    if (!viewingHistory && typeof currentSummaryType === 'number' && currentSummaryType < 3
         && matchSetWinners[currentSummaryType] && !isMatchOverAfterSet(currentSummaryType)) {
         const nextNum = currentSummaryType + 1;
         const nextUnlocked = !document.getElementById(`set-btn-${nextNum}`).disabled;
         nextSetQuickBtn = nextUnlocked
             ? `<button class="btn-success" style="padding:6px 12px; font-size:0.85rem;" onclick="closeSummaryModal(); switchSet(${nextNum});">➡️ 切換到第 ${nextNum} 局</button>`
             : `<button class="btn-success" style="padding:6px 12px; font-size:0.85rem;" onclick="closeSummaryModal(); showSetEndModal(${currentSummaryType});">➡️ 確認站位，進入第 ${nextNum} 局</button>`;
+    }
+
+    if (!viewingHistory && currentSummaryType === 'total') {
+        const pending = getPendingNextSet();
+        if (pending) {
+            nextSetQuickBtn = `<button class="btn-success" style="padding:6px 12px; font-size:0.85rem;" onclick="closeSummaryModal(); showSetEndModal(${pending});">➡️ 確認站位，進入第 ${pending + 1} 局</button>`;
+        }
     }
 
     let html = `
@@ -1387,6 +1530,7 @@ function buildMatchLogHTML(setNums) {
 
 function closeSummaryModal() {
     document.getElementById('summary-modal').style.display = 'none';
+    endHistoryView();
 }
 
 function getExportFileName() {
@@ -1833,4 +1977,218 @@ function buildAnalysisHTML(type) {
     }).join('') + `</div>`;
     html += chartCard('球員能力雷達圖', radarHTML(stats), '發球／攻擊／防守／攔網為各項淨貢獻，以全隊最大值為基準（50 為持平）；穩定度＝1 − 失分占比。僅供賽後檢討參考。');
     return html + `</div>`;
+}
+
+// ==================== 賽事管理：儲存 / 檢視 / 刪除 / 備份 ====================
+function getMatches() {
+    try {
+        const raw = localStorage.getItem(MATCHES_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+}
+
+function setMatches(list) {
+    try {
+        localStorage.setItem(MATCHES_KEY, JSON.stringify(list));
+        return true;
+    } catch (e) {
+        alert('儲存失敗：瀏覽器儲存空間可能已滿，請先到「賽事管理」匯出備份並刪除舊賽事。');
+        return false;
+    }
+}
+
+function serializeSetState(d) {
+    return Object.assign({}, d, { substitutedPlayers: [...(d.substitutedPlayers || [])] });
+}
+
+function deserializeSetState(d) {
+    const base = createSetState(d.lineup || ["", "", "", "", "", ""], d.hasServe !== false);
+    return Object.assign(base, d, { substitutedPlayers: new Set(d.substitutedPlayers || []) });
+}
+
+function setHasData(d) {
+    return d.historyLog.length > 0 || d.ourScore + d.opponentScore > 0;
+}
+
+function buildMatchRecord() {
+    const sets = {};
+    for (let s = 1; s <= 3; s++) sets[s] = serializeSetState(matchSets[s]);
+    const winners = Object.assign({}, matchSetWinners);
+    const ourSets = Object.values(winners).filter(w => w === 'our').length;
+    const oppSets = Object.values(winners).filter(w => w === 'opponent').length;
+    const finished = [1, 2, 3].some(s => winners[s] && isMatchOverAfterSet(s));
+    return {
+        id: currentMatchId,
+        savedAt: Date.now(),
+        date: matchInfo.date || '',
+        tournament: matchInfo.tournament || '友誼賽',
+        team: activeTeamName,
+        opponent: matchInfo.opponent || '對手',
+        roster: [...registeredPlayers],
+        startLineup: [...matchStartLineup],
+        winners, sets, ourSets, oppSets, finished
+    };
+}
+
+// 儲存（以 id 覆蓋更新）；silent=true 時為自動存檔
+function saveCurrentMatch(silent) {
+    if (!currentMatchId) return false;
+    if (![1, 2, 3].some(s => setHasData(matchSets[s]))) {
+        if (!silent) showToast('目前還沒有任何得分紀錄可儲存');
+        return false;
+    }
+    const rec = buildMatchRecord();
+    const list = getMatches();
+    const i = list.findIndex(m => m.id === rec.id);
+    if (i >= 0) list[i] = rec; else list.push(rec);
+    if (!setMatches(list)) return false;
+    showToast(silent ? (rec.finished ? '全場賽事已自動儲存到「賽事管理」' : '本局已自動儲存') : '賽事已儲存，可到「賽事管理」查看');
+    if (document.getElementById('history-tab').classList.contains('active')) renderMatchHistory();
+    return true;
+}
+
+function saveAndOpenHistory() {
+    saveCurrentMatch(true);
+    closeSetEndModal();
+    switchTab('history-tab');
+}
+
+function matchResultLabel(m) {
+    if (m.finished) {
+        const win = m.ourSets > m.oppSets;
+        return { text: win ? '勝' : '敗', cls: win ? 'is-win' : 'is-loss' };
+    }
+    return { text: '未完成', cls: 'is-live' };
+}
+
+function renderMatchHistory() {
+    const box = document.getElementById('history-list');
+    if (!box) return;
+
+    const all = getMatches().sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.savedAt - a.savedAt);
+
+    // 球隊篩選選單
+    const teamSel = document.getElementById('history-team-filter');
+    const prevTeam = teamSel.value;
+    const teams = [...new Set(all.map(m => m.team))];
+    teamSel.innerHTML = '<option value="">全部球隊</option>' + teams.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    teamSel.value = teams.includes(prevTeam) ? prevTeam : '';
+
+    const kw = document.getElementById('history-search').value.trim().toLowerCase();
+    const teamFilter = teamSel.value;
+    const list = all.filter(m =>
+        (!teamFilter || m.team === teamFilter) &&
+        (!kw || `${m.opponent} ${m.tournament} ${m.team} ${m.date}`.toLowerCase().includes(kw)));
+
+    const done = all.filter(m => m.finished);
+    const wins = done.filter(m => m.ourSets > m.oppSets).length;
+    document.getElementById('history-stats').textContent =
+        `共 ${all.length} 場　｜　已完成 ${done.length} 場（${wins} 勝 ${done.length - wins} 敗）`;
+
+    if (all.length === 0) {
+        box.innerHTML = '<div class="history-empty">還沒有任何賽事紀錄。<br>比賽每局結束時會自動儲存，也可以在比賽中按「💾 儲存賽事」。</div>';
+        return;
+    }
+    if (list.length === 0) {
+        box.innerHTML = '<div class="history-empty">找不到符合條件的賽事。</div>';
+        return;
+    }
+
+    box.innerHTML = list.map(m => {
+        const r = matchResultLabel(m);
+        const setScores = [1, 2, 3].filter(s => m.sets[s] && setHasData(m.sets[s]))
+            .map(s => `<span class="hm-set">第${s}局 ${m.sets[s].ourScore}:${m.sets[s].opponentScore}</span>`).join('');
+        return `<div class="history-card">
+            <div class="hm-main">
+                <div class="hm-top">
+                    <span class="hm-date">📅 ${escapeHtml(m.date || '未填日期')}</span>
+                    <span class="hm-tour">🏆 ${escapeHtml(m.tournament)}</span>
+                    <span class="hm-badge ${r.cls}">${r.text}</span>
+                </div>
+                <div class="hm-vs">${escapeHtml(m.team)} <b>${m.ourSets} : ${m.oppSets}</b> ${escapeHtml(m.opponent)}</div>
+                <div class="hm-sets">${setScores}</div>
+            </div>
+            <div class="hm-actions">
+                <button class="btn-primary" onclick="viewMatchRecord('${m.id}')">📊 查看報表</button>
+                <button class="btn-danger" onclick="deleteMatchRecord('${m.id}')">🗑 刪除</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function viewMatchRecord(id) {
+    const rec = getMatches().find(m => m.id === id);
+    if (!rec) { alert('找不到這筆賽事紀錄。'); return; }
+
+    if (!viewingHistory) {
+        viewBackup = { matchSets, matchInfo, activeTeamName, registeredPlayers, matchSetWinners, currentSummaryType };
+    }
+    viewingHistory = true;
+    matchSets = {};
+    for (let s = 1; s <= 3; s++) matchSets[s] = deserializeSetState(rec.sets[s] || createSetState());
+    matchInfo = { date: rec.date, tournament: rec.tournament, opponent: rec.opponent };
+    activeTeamName = rec.team;
+    registeredPlayers = [...rec.roster];
+    matchSetWinners = Object.assign({}, rec.winners);
+    openSummaryModal('total');
+}
+
+// 關閉報表時，把「目前比賽」的狀態還原
+function endHistoryView() {
+    if (!viewingHistory || !viewBackup) { viewingHistory = false; return; }
+    ({ matchSets, matchInfo, activeTeamName, registeredPlayers, matchSetWinners, currentSummaryType } = viewBackup);
+    viewBackup = null;
+    viewingHistory = false;
+}
+
+function deleteMatchRecord(id) {
+    const rec = getMatches().find(m => m.id === id);
+    if (!rec) return;
+    if (!confirm(`確定要刪除這場賽事紀錄嗎？\n${rec.date}　${rec.team} v.s ${rec.opponent}\n此動作無法復原。`)) return;
+    setMatches(getMatches().filter(m => m.id !== id));
+    renderMatchHistory();
+}
+
+function exportMatchesData() {
+    const list = getMatches();
+    if (list.length === 0) { alert('目前沒有可匯出的賽事紀錄。'); return; }
+    const d = new Date();
+    const ds = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    const blob = new Blob([JSON.stringify({ type: 'volleyball_matches', version: 1, matches: list }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `volleyball_matches_${ds}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function importMatchesData(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            const incoming = Array.isArray(data) ? data : data.matches;
+            if (!Array.isArray(incoming)) throw new Error('format');
+            const list = getMatches();
+            let added = 0, updated = 0;
+            incoming.forEach(m => {
+                if (!m || !m.id || !m.sets) return;
+                const i = list.findIndex(x => x.id === m.id);
+                if (i >= 0) { list[i] = m; updated++; } else { list.push(m); added++; }
+            });
+            if (setMatches(list)) {
+                renderMatchHistory();
+                alert(`匯入完成：新增 ${added} 場，更新 ${updated} 場。`);
+            }
+        } catch (err) {
+            alert('匯入失敗，請確認這是從本系統匯出的賽事備份檔。');
+        }
+        event.target.value = '';
+    };
+    reader.readAsText(file, 'UTF-8');
 }

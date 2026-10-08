@@ -101,13 +101,6 @@ h3 { font-size: 1.05rem; }
 }
 .card h3 { margin-top: 0; }
 
-#pregame-section > div[style*="background: #f1f5f9"] {
-    background: var(--panel) !important;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm) !important;
-    padding: 16px !important;
-}
-#pregame-section h3 { color: var(--ink) !important; font-size: 1rem !important; }
 
 .form-group { margin-bottom: 14px; }
 label { display: block; font-weight: 600; margin-bottom: 6px; font-size: .88rem; color: var(--ink-soft); }
@@ -178,14 +171,14 @@ button:disabled { cursor: not-allowed; }
 /* ============ 球員選擇卡 ============ */
 .roster-select-grid {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
-    max-height: 300px;
+    max-height: 340px;          /* 僅手機：避免清單過長；平板以上取消，改由整頁捲動 */
     overflow-y: auto;
     padding: 2px;
 }
-@media (min-width: 640px) { .roster-select-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1024px) { .roster-select-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 560px) { .roster-select-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: none; overflow: visible; } }
+@media (min-width: 900px) { .roster-select-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
 .roster-select-card {
     background: #fff;
@@ -198,6 +191,8 @@ button:disabled { cursor: not-allowed; }
     cursor: pointer;
     transition: border-color .2s, background .2s, box-shadow .2s;
     box-sizing: border-box;
+    min-width: 0;
+    min-height: 56px;
 }
 .roster-select-card:hover { border-color: #b7c7d8; }
 .roster-select-card.selected {
@@ -220,8 +215,8 @@ button:disabled { cursor: not-allowed; }
     flex-shrink: 0;
 }
 .roster-select-card.selected .player-badge-pill { background: var(--primary); }
-.roster-card-info { display: flex; flex-direction: column; justify-content: center; }
-.roster-card-name { font-weight: 700; font-size: 1rem; color: var(--ink); line-height: 1.2; }
+.roster-card-info { display: flex; flex-direction: column; justify-content: center; flex: 1; min-width: 0; }
+.roster-card-name { font-weight: 700; font-size: 1rem; color: var(--ink); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .roster-card-pos { font-size: .8rem; color: var(--muted); margin-top: 2px; }
 
 .status-badge { font-size: .75rem; padding: 2px 8px; border-radius: 999px; font-weight: 700; display: inline-block; }
@@ -274,7 +269,7 @@ button:disabled { cursor: not-allowed; }
     letter-spacing: .12em;
     color: rgba(255, 255, 255, .85);
 }
-.court-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.court-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 
 .player-node {
     background: rgba(255, 255, 255, .96);
@@ -321,18 +316,26 @@ button:disabled { cursor: not-allowed; }
     padding: 10px 6px;
     text-align: center;
     box-shadow: 0 2px 6px rgba(0, 0, 0, .15);
+    min-width: 0;
 }
 .pregame-node.is-server { background: #fff4d2; box-shadow: 0 0 0 3px var(--accent); }
 .pregame-select {
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 44px;
     padding: 8px 4px;
     margin-top: 4px;
     border: 1px solid #c9d4df;
     border-radius: 8px;
-    font-size: .95rem;
+    font-size: 16px;            /* iPad / iPhone：低於 16px 點選時頁面會被自動放大而「跑版」 */
     font-weight: 700;
     background: #fff;
     text-align: center;
+    text-align-last: center;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
 /* ============ 比分看板 ============ */
@@ -602,33 +605,37 @@ button:disabled { cursor: not-allowed; }
 [id$="-modal"] > div { box-sizing: border-box; max-width: 100%; }
 #summary-modal .tab-btn { white-space: nowrap; flex: none; }
 
-/* ============ 全螢幕按鈕 ============ */
+/* ============ 全螢幕按鈕（放在導覽列內，不再浮在內容上） ============ */
 .fullscreen-btn {
-    position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 8px);
-    right: 8px;
-    z-index: 900;
+    flex: 0 0 auto;
     width: auto;
-    padding: 8px 12px;
-    font-size: .85rem;
+    padding: 10px 14px;
+    font-size: .88rem;
     font-weight: 700;
     color: #fff;
-    background: rgba(28, 43, 58, .82);
+    background: var(--ink);
     border: none;
-    border-radius: 999px;
+    border-radius: 10px;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+    white-space: nowrap;
 }
 .fullscreen-btn:active { transform: scale(.96); }
+@media (max-width: 480px) {
+    .fullscreen-btn { padding: 10px 12px; }
+    .fullscreen-btn .fs-text { display: none; }
+}
 
 /* ============ 輪轉鍵 ============ */
 .rotate-bar { display: flex; gap: 8px; margin-bottom: 6px; }
 .rotate-bar button { flex: 1; width: auto; padding: 10px 8px; font-size: .9rem; }
 .rotate-hint { font-size: .78rem; color: var(--muted); margin-bottom: 10px; }
 
-/* 瀏覽器不支援原生全螢幕時的備援：隱藏分頁列、收掉邊距 */
-body.pseudo-fs { padding: 0; }
-body.pseudo-fs .nav-tabs { display: none; }
+/* 全螢幕（原生或備援）時：分頁列保留（才能切換頁面與退出），但收緊間距讓出版面 */
+body.is-fs { padding: 6px; }
+body.is-fs .nav-tabs { margin-bottom: 8px; padding: 3px; }
+body.is-fs .nav-tabs .tab-btn,
+body.is-fs .nav-tabs .fullscreen-btn { padding-top: 7px; padding-bottom: 7px; min-height: 36px; }
+body.pseudo-fs { padding: 0; padding-top: env(safe-area-inset-top, 0px); }
 /* ============ 列印 / 匯出 PDF：只輸出「完整賽事紀錄表」(#print-sheet) ============ */
 #print-sheet { display: none; }
 @media print {
@@ -677,3 +684,138 @@ body.pseudo-fs .nav-tabs { display: none; }
     max-width: 92%; text-align: center;
 }
 #toast.show { opacity: 1; }
+
+/* ============================================================
+   賽前準備與檢錄設定：平板版面
+   ============================================================ */
+.pg-panel {
+    background: var(--panel);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    margin-bottom: 16px;
+    min-width: 0;
+    box-sizing: border-box;
+}
+.pg-title { margin: 0 0 12px; font-size: 1rem; color: var(--ink); text-align: left; }
+.pg-title-sub { font-weight: 600; color: var(--ink-soft); font-size: .92rem; }
+
+/* 1. 基本資訊：手機 1 欄 → 平板直向 2x2 → 橫向 4 欄 */
+.pg-info-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 560px)  { .pg-info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1000px) { .pg-info-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+.pg-field { min-width: 0; margin: 0; }
+.pg-field label { margin-bottom: 6px; font-size: .88rem; }
+.pg-field input, .pg-field select {
+    min-width: 0;
+    max-width: 100%;
+    min-height: 48px;           /* 日期 / 文字 / 下拉高度一致，也是平板好點的高度 */
+    padding: 10px 14px;
+    font-size: 16px;
+}
+/* iOS Safari 的日期欄有固有最小寬度，會把格子撐出去 */
+.pg-field input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    text-align: left;
+}
+.pg-field input[type="date"]::-webkit-date-and-time-value { text-align: left; min-height: 1.4em; }
+
+/* 2. 檢錄：標題與按鈕可換行 */
+.pg-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 14px; margin-bottom: 12px; }
+.pg-head .pg-title { margin: 0; flex: 1 1 260px; min-width: 0; }
+.pg-head-btn { width: auto; flex: 0 0 auto; padding: 10px 16px; font-size: .95rem; }
+
+.pg-summary { margin-top: 12px; }
+.pg-summary-btn { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; font-size: .95rem; }
+.pg-summary-count { background: rgba(255, 255, 255, .2); padding: 2px 8px; border-radius: 4px; font-size: .85rem; white-space: nowrap; }
+.pg-summary-dropdown { background: #fff; padding: 12px; border: 1px solid var(--border-color); border-top: none; border-radius: 0 0 8px 8px; font-size: .9rem; color: var(--ink); }
+.pg-summary-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+@media (min-width: 560px) { .pg-summary-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 900px) { .pg-summary-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* 3. 先發站位：直向（手機 / 平板直向）= 輪轉鍵 → 站位圖 → 先發球；橫向平板 = 左站位圖 / 右操作鍵 */
+.pg-lineup {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "rotate" "court" "serve";
+    gap: 12px;
+}
+.pg-rotate { grid-area: rotate; min-width: 0; }
+.pg-rotate .rotate-hint { margin-bottom: 0; }
+.pg-court-wrap { grid-area: court; width: 100%; max-width: 640px; margin: 0 auto; min-width: 0; }
+.pg-court { margin-bottom: 0; }
+.pg-serve { grid-area: serve; max-width: 640px; width: 100%; margin: 0 auto; }
+.pg-court .net-line { min-height: 1em; }
+
+@media (min-width: 900px) {
+    .pg-lineup {
+        grid-template-columns: minmax(0, 1fr) 270px;
+        grid-template-areas: "court rotate" "court serve";
+        grid-template-rows: auto 1fr;
+        gap: 14px 18px;
+        align-items: start;
+    }
+    .pg-court-wrap, .pg-serve { max-width: none; margin: 0; }
+    .pg-rotate .rotate-bar button { min-height: 52px; font-size: 1rem; }
+}
+
+.pg-start { width: 100%; min-height: 54px; font-size: 1.1rem; padding: 14px; }
+
+/* 觸控裝置：所有輸入欄一律 16px，避免 iOS 點選時自動放大 */
+@media (pointer: coarse) {
+    input, select, textarea { font-size: 16px !important; }
+}
+
+/* ============================================================
+   局間提示列：該局結束後，可隨時回來確認下一局站位 / 看全場報表
+   ============================================================ */
+.next-set-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 14px;
+    padding: 12px 14px;
+    margin-bottom: 15px;
+    background: #fff4d2;
+    border: 2px solid var(--accent);
+    border-radius: var(--radius);
+    box-sizing: border-box;
+}
+.next-set-banner.is-final { background: #e5f5ee; border-color: #8fd0b8; }
+.nsb-text { flex: 1 1 240px; min-width: 0; font-weight: 700; color: #6b4a0f; line-height: 1.4; }
+.next-set-banner.is-final .nsb-text { color: #0b6b52; }
+.nsb-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.nsb-actions button { width: auto; padding: 10px 16px; font-size: .95rem; }
+/* ============ 局間：下一局發球權 ============ */
+.next-serve-box { margin-bottom: 12px; padding: 10px 12px; background: #fff; border: 1px solid var(--border-color); border-radius: var(--radius-sm); }
+.next-serve-box label { margin-bottom: 4px; }
+#next-set-serve.need-choice { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(212, 73, 90, .15); }
+
+/* ============ 賽事管理 ============ */
+.history-stats { font-weight: 700; color: var(--ink-soft); margin-bottom: 10px; }
+.history-filters { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 10px; }
+@media (min-width: 560px) { .history-filters { grid-template-columns: 2fr 1fr; } }
+.history-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.history-tools button { flex: 1 1 180px; width: auto; }
+.history-empty { text-align: center; color: var(--muted); padding: 36px 12px; background: var(--card-bg); border: 1px dashed var(--border-color); border-radius: var(--radius); line-height: 1.8; }
+.history-card {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+    background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--radius);
+    padding: 14px 16px; margin-bottom: 12px; box-shadow: var(--shadow); box-sizing: border-box;
+}
+.hm-main { flex: 1 1 280px; min-width: 0; }
+.hm-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: .85rem; color: var(--ink-soft); margin-bottom: 4px; }
+.hm-vs { font-size: 1.15rem; font-weight: 700; color: var(--ink); word-break: break-word; }
+.hm-vs b { margin: 0 6px; color: var(--primary); font-size: 1.3rem; }
+.hm-sets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.hm-set { background: var(--primary-soft); color: var(--primary); border-radius: 999px; padding: 2px 10px; font-size: .8rem; font-weight: 700; }
+.hm-badge { border-radius: 999px; padding: 2px 10px; font-size: .78rem; font-weight: 700; color: #fff; }
+.hm-badge.is-win { background: var(--success); }
+.hm-badge.is-loss { background: var(--danger); }
+.hm-badge.is-live { background: var(--warning); }
+.hm-actions { display: flex; gap: 8px; }
+.hm-actions button { width: auto; padding: 10px 14px; font-size: .9rem; }
