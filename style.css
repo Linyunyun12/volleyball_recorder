@@ -629,3 +629,51 @@ button:disabled { cursor: not-allowed; }
 /* 瀏覽器不支援原生全螢幕時的備援：隱藏分頁列、收掉邊距 */
 body.pseudo-fs { padding: 0; }
 body.pseudo-fs .nav-tabs { display: none; }
+/* ============ 列印 / 匯出 PDF：只輸出「完整賽事紀錄表」(#print-sheet) ============ */
+#print-sheet { display: none; }
+@media print {
+    body > *:not(#print-sheet) { display: none !important; }
+    #print-sheet {
+        display: block !important;
+        font-size: 10pt; color: #000;
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+    #print-sheet .paper-matrix-table { font-size: 8.5pt; }
+    #print-sheet .paper-matrix-table th { background: #efe8d4 !important; }
+    #print-sheet .paper-matrix-table tr { break-inside: avoid; }
+    #print-sheet div[style*="overflow-x"] { overflow: visible !important; }
+    #print-sheet button { display: none !important; }
+}
+
+/* ============ 圖片預覽視窗 ============ */
+#image-preview-modal > div { padding: 14px !important; }
+.preview-box { background: #fff; width: 96%; max-width: 1200px; height: 92vh; display: flex; flex-direction: column; gap: 10px; }
+.preview-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.preview-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.preview-tools button { padding: 6px 12px; font-size: .9rem; min-height: 36px; }
+#preview-zoom-label { min-width: 3.2em; text-align: center; font-weight: 700; color: var(--ink-soft); }
+.preview-scroll { flex: 1; min-height: 0; overflow: auto; background: #e9e2cf; border: 1px solid var(--border-color); border-radius: 10px; -webkit-overflow-scrolling: touch; }
+#preview-img { display: block; width: 100%; max-width: 100%; background: #fff; user-select: none; -webkit-user-select: none; }
+.preview-hint { font-size: .8rem; color: var(--muted); text-align: center; }
+
+/* ============ 背號膠囊（場上球員、名單、點名共用） ============ */
+.player-node .player-badge-pill, .player-name .player-badge-pill { display: inline-block; font-size: .95rem; padding: 2px 9px; margin-right: 6px; vertical-align: middle; min-width: 0; }
+#selected-active-player .player-badge-pill { font-size: .9rem; padding: 2px 8px; margin-right: 6px; }
+.player-name-text { vertical-align: middle; }
+#roster-summary-list .player-badge-pill, #attendance-list-container .player-badge-pill { font-size: .85rem; padding: 2px 8px; margin-right: 8px; }
+
+/* ============ 點擊回饋：全畫面閃爍 + 提示浮窗 ============ */
+#flash-overlay { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 1500; }
+#flash-overlay.flash-gain { background: rgba(18, 137, 106, .30); animation: flashFade .5s ease-out; }
+#flash-overlay.flash-loss { background: rgba(212, 73, 90, .30); animation: flashFade .5s ease-out; }
+#flash-overlay.flash-neutral { background: rgba(47, 109, 181, .18); animation: flashFade .35s ease-out; }
+@keyframes flashFade { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+#toast {
+    position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+    background: rgba(28, 43, 58, .88); color: #fff;
+    padding: 10px 18px; border-radius: 12px; font-weight: 700; font-size: .95rem;
+    z-index: 2500; pointer-events: none; opacity: 0; transition: opacity .25s;
+    max-width: 92%; text-align: center;
+}
+#toast.show { opacity: 1; }

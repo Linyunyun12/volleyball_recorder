@@ -416,7 +416,7 @@ function updateSelectedCount() {
 
             let row = document.createElement('div');
             row.style.cssText = "display: flex; align-items: center; padding: 6px 10px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6;";
-            row.innerHTML = `<span style="background:#334155; color:white; font-weight:bold; padding:2px 8px; border-radius:6px; margin-right:8px; font-size:0.85rem;">${pNum}</span> <span style="font-weight:600;">${pName}</span> ${statusBadgeTag}`;
+            row.innerHTML = `<span class="player-badge-pill">${pNum}</span> <span style="font-weight:600;">${pName}</span> ${statusBadgeTag}`;
             listContainer.appendChild(row);
         });
     }
@@ -516,7 +516,7 @@ function openAttendanceModal() {
         item.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:white; padding:8px 12px; border-radius:6px; border:1px solid #e2e8f0; margin-bottom:8px;";
         item.innerHTML = `
             <div style="display:flex; align-items:center; gap:8px;">
-                <span style="background:#334155; color:white; font-weight:bold; padding:2px 8px; border-radius:6px; font-size:0.85rem;">${p.num}</span>
+                <span class="player-badge-pill">${p.num}</span>
                 <span style="font-weight:bold; color:#1e293b;">${p.name}</span>
             </div>
             <select id="att-${p.num}-${p.name}" style="width:130px; padding:6px; font-size:0.9rem;" onchange="attendanceStatus['${pKey}'] = this.value">
@@ -713,7 +713,7 @@ function setActivePlayer(index) {
             node.style.boxShadow = "";
         }
     }
-    document.getElementById('selected-active-player').textContent = `${currentData.lineup[index]} (P${index+1})`;
+    document.getElementById('selected-active-player').innerHTML = `${playerBadgeHTML(currentData.lineup[index])} <span style="font-size:.85em;">(P${index+1})</span>`;
 }
 
 function openSubstituteModal(posIdx) {
@@ -806,6 +806,7 @@ function closeDetailModal() {
 function recordDetailedEvent(impactTeam, category, reason, statKey) {
     const currentData = matchSets[currentSet];
     if (currentData.isFinished) return;
+    const hadServe = currentData.hasServe;
 
     const currentPlayer = currentData.lineup[activePlayerIndex];
     let rotatedThisPoint = false;
@@ -835,12 +836,14 @@ function recordDetailedEvent(impactTeam, category, reason, statKey) {
 
     currentData.historyLog.push({ statsApplied: statsApplied.map(k => ({ player: currentPlayer, key: k })), team: impactTeam, reason: `${category}-${reason}`, ourScore: currentData.ourScore, opponentScore: currentData.opponentScore, lineup: [...currentData.lineup], hasServe: currentData.hasServe, text: logText });
     updateUI();
+    afterPointFeedback(impactTeam, rotatedThisPoint, hadServe);
     checkSetWinCondition();
 }
 
 function scorePoint(team, reason) {
     const currentData = matchSets[currentSet];
     if (currentData.isFinished) return;
+    const hadServe = currentData.hasServe;
 
     let rotatedThisPoint = false;
     if (team === 'our') {
@@ -860,6 +863,7 @@ function scorePoint(team, reason) {
 
     currentData.historyLog.push({ team, reason, ourScore: currentData.ourScore, opponentScore: currentData.opponentScore, lineup: [...currentData.lineup], hasServe: currentData.hasServe, text: logText });
     updateUI();
+    afterPointFeedback(team, rotatedThisPoint, hadServe);
     checkSetWinCondition();
 }
 
@@ -1037,7 +1041,7 @@ function updateUI() {
     document.getElementById('opponent-score').textContent = currentData.opponentScore;
 
     for (let i = 0; i < 6; i++) {
-        document.getElementById(`disp-p${i+1}`).textContent = currentData.lineup[i] || '-';
+        document.getElementById(`disp-p${i+1}`).innerHTML = playerBadgeHTML(currentData.lineup[i]);
         document.getElementById(`node-p${i+1}`).classList.remove('is-server');
     }
     document.getElementById('node-p1').classList.add('is-server');
@@ -1155,9 +1159,9 @@ function getSortedReportPlayers(targetSetNum = null) {
 }
 
 // 報表生成：加入「其他失誤」欄位呈現
-function generateReportHTML() {
+function generateReportHTML(opts = {}) {
     const area = document.getElementById('summary-content-area');
-    area.innerHTML = '';
+    if (!opts.returnOnly) area.innerHTML = '';
 
     let statsToRender = {};
     let setOurScore = 0;
@@ -1345,19 +1349,169 @@ function generateReportHTML() {
         </div>
     `;
 
+    // 流水帳：單局報表顯示該局，全場報表顯示所有已開打的局
+    const logSets = (typeof currentSummaryType === 'number')
+        ? [currentSummaryType]
+        : [1, 2, 3].filter(s => matchSets[s].historyLog.length > 0 || matchSets[s].ourScore + matchSets[s].opponentScore > 0);
+    if (!opts.noAnalysis) html += buildAnalysisHTML(currentSummaryType);
+    if (!opts.noLog) html += buildMatchLogHTML(logSets);
+
+    if (opts.returnOnly) return html;
     area.innerHTML = html;
+}
+
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+
+// 整場賽事流水帳（依時間順序；隨報表一起列印 / 匯出圖片）
+function buildMatchLogHTML(setNums) {
+    let html = `<div style="margin-top:18px;">
+        <div style="font-weight:700; font-size:1rem; padding-bottom:6px; margin-bottom:10px; border-bottom:2px solid #e5ddc8;">賽事流水帳${setNums.length > 1 ? '（全場）' : ''}</div>`;
+    if (setNums.length === 0) {
+        return html + `<div style="color:#7a8899; font-size:.9rem;">尚無比賽紀錄</div></div>`;
+    }
+    setNums.forEach(s => {
+        const d = matchSets[s];
+        html += `<div style="margin-bottom:14px;">
+            <div style="font-weight:700; background:#efe8d4; padding:6px 10px; border-radius:6px; font-size:.92rem;">第 ${s} 局　${d.ourScore} : ${d.opponentScore}${d.isFinished ? '（已結束）' : ''}</div>`;
+        if (d.historyLog.length === 0) {
+            html += `<div style="padding:6px 10px; color:#7a8899; font-size:.85rem;">（本局尚無紀錄）</div>`;
+        }
+        d.historyLog.forEach((item, i) => {
+            const color = item.team === 'our' ? '#12896a' : (item.team === 'opponent' ? '#d4495a' : '#4a5a6c');
+            html += `<div style="padding:4px 10px; font-size:.84rem; border-bottom:1px dotted #d9d0b8; color:${color};"><span style="color:#7a8899; display:inline-block; min-width:2.2em;">${i + 1}.</span>${escapeHtml(item.text || item.reason || '')}</div>`;
+        });
+        html += `</div>`;
+    });
+    return html + `</div>`;
 }
 
 function closeSummaryModal() {
     document.getElementById('summary-modal').style.display = 'none';
 }
 
+function getExportFileName() {
+    const label = (typeof currentSummaryType === 'number') ? `第${currentSummaryType}局` : '全場';
+    return `${matchInfo.date || '比賽'}_${activeTeamName}_vs_${matchInfo.opponent || '對手'}_賽事紀錄表`.replace(/[\\/:*?"<>|\s]+/g, '_');
+}
+
+// ===== 完整賽事紀錄表（與畫面上選哪一局無關）：總計 + 各局統計 + 整場流水帳 =====
+function buildFullSheetHTML() {
+    const savedType = currentSummaryType;
+    const played = [1, 2, 3].filter(s => matchSets[s].historyLog.length > 0 || matchSets[s].ourScore + matchSets[s].opponentScore > 0);
+    const setLine = played.map(s => `第${s}局 ${matchSets[s].ourScore}:${matchSets[s].opponentScore}`).join('　｜　');
+    const secTitle = (t) => `<div style="font-weight:700; font-size:1.05em; padding:5px 12px; background:#2f6db5; color:#fff; border-radius:6px; margin-bottom:8px;">${t}</div>`;
+
+    let html = `<div style="margin-bottom:14px;">
+        <div style="font-size:1.5em; font-weight:700;">${escapeHtml(activeTeamName)} v.s ${escapeHtml(matchInfo.opponent || '對手')}　賽事紀錄表</div>
+        <div style="color:#4a5a6c; font-size:.92em; margin-top:4px;">${escapeHtml(matchInfo.date || '')}　${escapeHtml(matchInfo.tournament || '友誼賽')}　${setLine}</div>
+    </div>`;
+    try {
+        currentSummaryType = 'total';
+        html += `<div style="break-inside:avoid; margin-bottom:16px;">${secTitle('全場總計')}${generateReportHTML({ returnOnly: true, noLog: true, noAnalysis: true })}</div>`;
+        played.forEach(s => {
+            currentSummaryType = s;
+            html += `<div style="break-inside:avoid; margin-bottom:16px;">${secTitle(`第 ${s} 局`)}${generateReportHTML({ returnOnly: true, noLog: true, noAnalysis: true })}</div>`;
+        });
+    } finally {
+        currentSummaryType = savedType;
+    }
+    html += buildAnalysisHTML('total');
+    html += buildMatchLogHTML(played);
+    return html;
+}
+
+function getFullSheetElementHTML() {
+    const box = document.createElement('div');
+    box.innerHTML = buildFullSheetHTML();
+    box.querySelectorAll('button').forEach(b => b.remove());
+    return box.innerHTML;
+}
+
+// ===== PDF：列印「完整紀錄表」（style.css 的 @media print 只輸出 #print-sheet）=====
 function exportReportAsPDF() {
+    let sheet = document.getElementById('print-sheet');
+    if (!sheet) {
+        sheet = document.createElement('div');
+        sheet.id = 'print-sheet';
+        document.body.appendChild(sheet);
+    }
+    sheet.innerHTML = getFullSheetElementHTML();
+
+    const oldTitle = document.title;
+    document.title = getExportFileName();
+    window.addEventListener('afterprint', () => { document.title = oldTitle; sheet.innerHTML = ''; }, { once: true });
     window.print();
 }
 
-function exportReportAsImageNotification() {
-    alert('💡 提示：使用「螢幕截圖」功能將此報表畫面拍下來並存為照片，或點擊「匯出為 PDF」儲存檔案！');
+// ===== 圖片：畫成 PNG → 開啟可縮放的預覽視窗 → 下載（不需外部套件，離線可用）=====
+const REPORT_EXPORT_CSS = `
+.paper-matrix-table { width:100%; table-layout:fixed; border-collapse:collapse; margin-bottom:15px; font-size:13px; }
+.paper-matrix-table th, .paper-matrix-table td { border:1px solid #cfd9e3; padding:7px 2px; text-align:center; overflow:hidden; white-space:nowrap; }
+.paper-matrix-table th { background:#efe8d4; font-weight:700; color:#1c2b3a; }
+.paper-matrix-table tbody tr:nth-child(even) { background:#fbf8f0; }
+.paper-matrix-table tbody tr:nth-child(odd) { background:#ffffff; }
+`;
+const PREVIEW_BASE_W = 1400;
+let previewUrl = null;
+
+function exportReportAsImage() {
+    const W = PREVIEW_BASE_W, SCALE = 2;
+    const wrap = document.createElement('div');
+    wrap.style.cssText = `position:fixed; left:-99999px; top:0; width:${W}px; box-sizing:border-box; padding:28px; background:#fff; color:#1c2b3a; line-height:1.5; font-size:14px; font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;`;
+    wrap.innerHTML = `<style>${REPORT_EXPORT_CSS}</style>` + getFullSheetElementHTML();
+    document.body.appendChild(wrap);
+    const H = wrap.scrollHeight;
+    wrap.style.position = 'static';
+    wrap.style.left = '';
+    wrap.style.top = '';
+    const xhtml = new XMLSerializer().serializeToString(wrap);   // 轉成合法 XHTML（<br> 等需自閉合）
+    document.body.removeChild(wrap);
+
+    const fail = () => alert('此瀏覽器無法直接產生圖片，請改用「匯出 / 儲存為 PDF」，或使用螢幕截圖。');
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><foreignObject x="0" y="0" width="${W}" height="${H}">${xhtml}</foreignObject></svg>`;
+    const img = new Image();
+    img.onload = () => {
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = W * SCALE;
+            canvas.height = H * SCALE;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.scale(SCALE, SCALE);
+            ctx.drawImage(img, 0, 0);
+            canvas.toBlob(blob => {
+                if (!blob) { fail(); return; }
+                openImagePreview(blob);
+            }, 'image/png');
+        } catch (e) { fail(); }
+    };
+    img.onerror = fail;
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+
+function openImagePreview(blob) {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = URL.createObjectURL(blob);
+    const img = document.getElementById('preview-img');
+    img.src = previewUrl;
+    document.getElementById('image-preview-modal').style.display = 'flex';
+}
+
+function downloadPreviewImage() {
+    if (!previewUrl) return;
+    const a = document.createElement('a');
+    a.href = previewUrl;
+    a.download = getExportFileName() + '.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+}
+
+function closeImagePreview() {
+    document.getElementById('image-preview-modal').style.display = 'none';
+    if (previewUrl) { URL.revokeObjectURL(previewUrl); previewUrl = null; }
+    document.getElementById('preview-img').removeAttribute('src');
 }
 
 function exportTeamsData() {
@@ -1457,3 +1611,226 @@ function renderScoringGroups() {
     last.appendChild(makeBtn('犯規', 'is-foul', () => openDetailModal('犯規')));
 }
 renderScoringGroups();
+
+// ==================== 背號膠囊 ====================
+function playerBadgeHTML(str) {
+    if (!str || str === '-') return '-';
+    const i = str.indexOf(' ');
+    const num = i < 0 ? '' : str.slice(0, i);
+    const name = i < 0 ? str : str.slice(i + 1);
+    return `<span class="player-badge-pill">${escapeHtml(num)}</span><span class="player-name-text">${escapeHtml(name)}</span>`;
+}
+
+// ==================== 操作回饋：畫面閃爍 + 提示浮窗 ====================
+function flashFeedback(kind) {
+    let el = document.getElementById('flash-overlay');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'flash-overlay';
+        document.body.appendChild(el);
+    }
+    el.className = '';
+    void el.offsetWidth;   // 重新觸發動畫
+    el.className = 'flash-' + kind;
+    if (navigator.vibrate) navigator.vibrate(kind === 'loss' ? 60 : 30);
+}
+
+let toastTimer = null;
+function showToast(msg) {
+    let el = document.getElementById('toast');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'toast';
+        document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+function afterPointFeedback(impact, rotated, hadServe) {
+    flashFeedback(impact === 'our' ? 'gain' : (impact === 'opponent' ? 'loss' : 'neutral'));
+    const d = matchSets[currentSet];
+    if (rotated) {
+        const p = d.lineup[0] || '';
+        showToast(`已自動順時針輪轉，目前 P1 發球員：${p}`);
+    } else if (impact === 'opponent' && hadServe) {
+        showToast('發球權轉換：對手發球');
+    }
+}
+
+// ==================== 戰術分析（內嵌 SVG，隨報表一起匯出）====================
+const CH = { green: '#12896a', red: '#d4495a', blue: '#2f6db5', amber: '#d98a2b', purple: '#7a5aa6', teal: '#2b8a9c', gray: '#8794a3' };
+
+function sumStatsForType(type) {
+    const sets = (typeof type === 'number') ? [type] : [1, 2, 3];
+    const stats = {};
+    sets.forEach(s => {
+        const ps = matchSets[s].playerStats || {};
+        Object.keys(ps).forEach(p => {
+            if (!stats[p]) stats[p] = createPlayerStats();
+            Object.keys(ps[p]).forEach(k => { stats[p][k] = (stats[p][k] || 0) + ps[p][k]; });
+        });
+    });
+    return { sets, stats };
+}
+const statGain = st => st.serveAce + st.attackScore + st.dropScore + st.blockScore + st.defenseScore;
+const statLoss = st => st.serveError + st.attackError + st.dropError + st.blockError + st.defenseError + st.otherError
+    + st.foulCarry + st.foulDoubleHit + st.foulNet + st.foulCrossing;
+
+const chartCard = (title, body, note = '') =>
+    `<div style="border:1px solid #e5ddc8; border-radius:10px; padding:12px; background:#fff; break-inside:avoid;">
+        <div style="font-weight:700; font-size:.92rem; margin-bottom:8px; color:#1c2b3a;">${title}</div>${body}
+        ${note ? `<div style="font-size:.78rem; color:#7a8899; margin-top:6px; line-height:1.5;">${note}</div>` : ''}</div>`;
+const emptyChart = (t = '尚無足夠資料') => `<div style="color:#7a8899; font-size:.85rem; padding:20px 0; text-align:center;">${t}</div>`;
+
+// 淨勝分（得分 − 失分）
+function chartNetBars(stats) {
+    const rows = Object.keys(stats).map(p => { const g = statGain(stats[p]), l = statLoss(stats[p]); return { p, g, l, net: g - l }; })
+        .filter(r => r.g + r.l > 0).sort((a, b) => b.net - a.net);
+    if (!rows.length) return emptyChart();
+    const W = 520, rowH = 28, labelW = 96, valW = 118, H = rows.length * rowH + 8;
+    const half = (W - labelW - valW) / 2, mid = labelW + half;
+    const max = Math.max(1, ...rows.map(r => Math.abs(r.net)));
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;"><line x1="${mid}" y1="0" x2="${mid}" y2="${H}" stroke="#cfd9e3"/>`;
+    rows.forEach((r, i) => {
+        const y = 4 + i * rowH, w = Math.abs(r.net) / max * (half - 4), col = r.net >= 0 ? CH.green : CH.red;
+        s += `<text x="${labelW - 8}" y="${y + 17}" font-size="12" text-anchor="end" fill="#1c2b3a">${escapeHtml(r.p)}</text>`;
+        s += `<rect x="${r.net >= 0 ? mid : mid - w}" y="${y + 3}" width="${Math.max(w, 1)}" height="${rowH - 10}" rx="3" fill="${col}"/>`;
+        s += `<text x="${W - valW + 8}" y="${y + 17}" font-size="12" fill="#1c2b3a"><tspan font-weight="700" fill="${col}">${r.net > 0 ? '+' : ''}${r.net}</tspan> (得${r.g} / 失${r.l})</text>`;
+    });
+    return s + '</svg>';
+}
+
+// 圓環圖（得分來源 / 失分來源）
+function chartDonut(items) {
+    const data = items.filter(d => d.value > 0), total = data.reduce((a, d) => a + d.value, 0);
+    if (!total) return emptyChart();
+    const R = 44, C = 2 * Math.PI * R;
+    let off = 0, s = `<svg viewBox="0 0 330 ${Math.max(130, data.length * 20 + 16)}" width="100%" style="display:block;"><g transform="rotate(-90 65 65)">`;
+    data.forEach(d => {
+        const len = d.value / total * C;
+        s += `<circle cx="65" cy="65" r="${R}" fill="none" stroke="${d.color}" stroke-width="26" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-off}"/>`;
+        off += len;
+    });
+    s += `</g><text x="65" y="62" text-anchor="middle" font-size="11" fill="#7a8899">合計</text><text x="65" y="81" text-anchor="middle" font-size="18" font-weight="700" fill="#1c2b3a">${total}</text>`;
+    data.forEach((d, i) => {
+        const y = 16 + i * 20;
+        s += `<rect x="140" y="${y - 9}" width="11" height="11" rx="2" fill="${d.color}"/><text x="158" y="${y}" font-size="12" fill="#1c2b3a">${d.label}  ${d.value}（${Math.round(d.value / total * 100)}%）</text>`;
+    });
+    return s + '</svg>';
+}
+
+// 比分走勢（我方 − 對手），標出暫停
+function chartMomentum(s) {
+    const diffs = [0], seq = [], marks = [];
+    matchSets[s].historyLog.forEach(it => {
+        if (it.team === 'our' || it.team === 'opponent') { diffs.push(it.ourScore - it.opponentScore); seq.push(it.team); }
+        else if (it.text && it.text.includes('暫停記錄')) marks.push({ i: seq.length, mine: it.text.includes('由 【我方】'), score: `${it.ourScore}:${it.opponentScore}` });
+    });
+    if (diffs.length < 2) return { svg: emptyChart('本局尚無得失分紀錄'), note: '' };
+    const W = 520, H = 190, L = 34, R = 10, T = 18, B = 22, n = diffs.length - 1;
+    const m = Math.max(3, ...diffs.map(Math.abs));
+    const X = i => L + i / n * (W - L - R), Y = v => T + (m - v) / (2 * m) * (H - T - B);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;">`;
+    [m, 0, -m].forEach(v => { svg += `<line x1="${L}" y1="${Y(v)}" x2="${W - R}" y2="${Y(v)}" stroke="${v === 0 ? '#94a3b8' : '#e3e8ee'}" ${v === 0 ? 'stroke-dasharray="4 3"' : ''}/><text x="${L - 5}" y="${Y(v) + 4}" font-size="10" text-anchor="end" fill="#7a8899">${v > 0 ? '+' : ''}${v}</text>`; });
+    marks.forEach((mk, k) => {
+        const x = X(mk.i), col = mk.mine ? CH.purple : CH.gray;
+        svg += `<line x1="${x}" y1="${T - 4}" x2="${x}" y2="${H - B}" stroke="${col}" stroke-dasharray="3 3"/><text x="${x}" y="${T - 7}" font-size="10" text-anchor="middle" fill="${col}" font-weight="700">T${k + 1}</text>`;
+    });
+    svg += `<polyline points="${diffs.map((v, i) => `${X(i)},${Y(v)}`).join(' ')}" fill="none" stroke="${CH.blue}" stroke-width="2.2" stroke-linejoin="round"/>`;
+    svg += `<text x="${W - R}" y="${H - 6}" font-size="10" text-anchor="end" fill="#7a8899">得失分順序（共 ${n} 球）</text></svg>`;
+    let bestOur = 0, bestOpp = 0, run = 0, last = '';
+    seq.forEach(t => { run = (t === last) ? run + 1 : 1; last = t; if (t === 'our') bestOur = Math.max(bestOur, run); else bestOpp = Math.max(bestOpp, run); });
+    const tn = marks.map((mk, k) => {
+        const next = seq.slice(mk.i, mk.i + 3), a = next.filter(t => t === 'our').length;
+        return `T${k + 1}（${mk.mine ? '我方' : '對手'}，${mk.score}）後 ${next.length} 球：我方 ${a} : ${next.length - a} 對手`;
+    }).join('；');
+    return { svg, note: `最長連得 ${bestOur} 分｜最長連失 ${bestOpp} 分${tn ? '<br>' + tn : ''}` };
+}
+
+// 輪轉失分熱點：以「該球回合開始時的 P1 發球員」代表輪次
+function rotationHeatHTML(sets) {
+    const map = {};
+    sets.forEach(s => matchSets[s].historyLog.forEach(it => {
+        if ((it.team !== 'our' && it.team !== 'opponent') || !it.lineup) return;
+        let pre = it.lineup.slice();
+        if (it.text && it.text.includes('順時針輪轉')) pre = [pre[5], ...pre.slice(0, 5)];   // 還原輪轉前站位
+        const k = pre[0];
+        if (!k) return;
+        if (!map[k]) map[k] = { w: 0, l: 0 };
+        if (it.team === 'our') map[k].w++; else map[k].l++;
+    }));
+    const rows = Object.keys(map).map(k => ({ k, w: map[k].w, l: map[k].l, rate: map[k].l / (map[k].w + map[k].l) }))
+        .sort((a, b) => b.rate - a.rate || b.l - a.l);
+    if (!rows.length) return emptyChart();
+    let html = `<table class="paper-matrix-table" style="table-layout:auto;"><thead><tr><th>P1 發球員</th><th>得分</th><th>失分</th><th style="width:42%;">失分率</th></tr></thead><tbody>`;
+    rows.forEach(r => {
+        const pct = Math.round(r.rate * 100);
+        html += `<tr><td style="text-align:left; padding-left:8px;">${escapeHtml(r.k)}</td><td style="color:${CH.green}; font-weight:700;">${r.w}</td><td style="color:${CH.red}; font-weight:700;">${r.l}</td>
+            <td style="text-align:left;"><div style="display:flex; align-items:center; gap:6px; padding:0 6px;"><div style="height:12px; border-radius:3px; width:${pct}%; min-width:2px; background:rgba(212,73,90,${(0.25 + 0.75 * r.rate).toFixed(2)});"></div><span style="font-size:.8rem;">${pct}%</span></div></td></tr>`;
+    });
+    return html + '</tbody></table>';
+}
+
+// 球員五維雷達圖：發球 / 攻擊 / 防守 / 攔網 / 穩定度
+function radarHTML(stats) {
+    const list = Object.keys(stats).filter(p => statGain(stats[p]) + statLoss(stats[p]) > 0);
+    if (!list.length) return emptyChart();
+    const dims = st => [st.serveAce - st.serveError, st.attackScore + st.dropScore - st.attackError - st.dropError, st.defenseScore - st.defenseError, st.blockScore - st.blockError];
+    const maxAbs = Math.max(1, ...list.flatMap(p => dims(stats[p]).map(Math.abs)));
+    const labels = ['發球', '攻擊', '防守', '攔網', '穩定度'];
+    const cx = 90, cy = 88, R = 56, ang = i => -Math.PI / 2 + i * 2 * Math.PI / 5;
+    const pt = (i, f) => [(cx + R * f * Math.cos(ang(i))).toFixed(1), (cy + R * f * Math.sin(ang(i))).toFixed(1)];
+    const cards = list.map(p => {
+        const st = stats[p], g = statGain(st), l = statLoss(st);
+        const vals = dims(st).map(n => (50 + 50 * n / maxAbs) / 100);
+        vals.push(1 - l / (g + l));
+        let s = `<svg viewBox="0 0 180 180" width="100%" style="display:block; max-width:190px; margin:0 auto;">`;
+        [0.25, 0.5, 0.75, 1].forEach(f => { s += `<polygon points="${[0, 1, 2, 3, 4].map(i => pt(i, f).join(',')).join(' ')}" fill="none" stroke="#dde3ea"/>`; });
+        [0, 1, 2, 3, 4].forEach(i => {
+            const [x, y] = pt(i, 1), [lx, ly] = pt(i, 1.24);
+            s += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#dde3ea"/><text x="${lx}" y="${+ly + 4}" font-size="11" text-anchor="middle" fill="#4a5a6c">${labels[i]}</text>`;
+        });
+        s += `<polygon points="${vals.map((v, i) => pt(i, v).join(',')).join(' ')}" fill="rgba(47,109,181,.28)" stroke="${CH.blue}" stroke-width="2"/></svg>`;
+        return `<div style="text-align:center; break-inside:avoid;">${s}<div style="font-weight:700; font-size:.85rem;">${escapeHtml(p)}</div></div>`;
+    });
+    return `<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:10px;">${cards.join('')}</div>`;
+}
+
+function buildAnalysisHTML(type) {
+    const { sets, stats } = sumStatsForType(type);
+    const played = sets.filter(s => matchSets[s].historyLog.length > 0);
+    if (!played.length) return '';
+    let oppErr = 0;
+    sets.forEach(s => matchSets[s].historyLog.forEach(it => {
+        if (it.team === 'our' && typeof it.reason === 'string' && it.reason.startsWith('對方')) oppErr++;
+    }));
+    const sum = k => Object.values(stats).reduce((a, st) => a + st[k], 0);
+    const gainItems = [
+        { label: '發球 Ace', value: sum('serveAce'), color: CH.blue }, { label: '攻擊得分', value: sum('attackScore'), color: CH.teal },
+        { label: '吊球得分', value: sum('dropScore'), color: CH.amber }, { label: '攔網得分', value: sum('blockScore'), color: CH.purple },
+        { label: '防守得分', value: sum('defenseScore'), color: CH.green }, { label: '對方失誤送分', value: oppErr, color: CH.gray }
+    ];
+    const lossItems = [
+        { label: '發球失誤', value: sum('serveError'), color: CH.blue }, { label: '攻擊失分', value: sum('attackError'), color: CH.teal },
+        { label: '吊球失誤', value: sum('dropError'), color: CH.amber }, { label: '攔網失分', value: sum('blockError'), color: CH.purple },
+        { label: '防守失誤', value: sum('defenseError'), color: CH.green }, { label: '其他失誤', value: sum('otherError'), color: CH.gray },
+        { label: '犯規', value: sum('foulCarry') + sum('foulDoubleHit') + sum('foulNet') + sum('foulCrossing'), color: CH.red }
+    ];
+    const grid = 'display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:12px; margin-bottom:12px;';
+    let html = `<div style="margin-top:18px;"><div style="font-weight:700; font-size:1rem; padding-bottom:6px; margin-bottom:10px; border-bottom:2px solid #e5ddc8;">戰術分析</div>`;
+    html += `<div style="${grid}">
+        ${chartCard('球員淨勝分（得分 − 失分）', chartNetBars(stats), '得分＝Ace、攻擊、吊球、攔網、防守得分；失分＝各項失誤與犯規。不含「對方失誤送分」。')}
+        ${chartCard('得分來源', chartDonut(gainItems))}
+        ${chartCard('失分來源', chartDonut(lossItems), '看是自己失誤送分較多，還是某項技術崩盤。')}
+        ${chartCard('輪轉失分熱點', rotationHeatHTML(played), '以每一球開始時的 P1 發球員代表輪次；失分率越高顏色越深，排序由高到低。')}
+    </div>`;
+    html += `<div style="${grid}">` + played.map(s => {
+        const m = chartMomentum(s);
+        return chartCard(`第 ${s} 局比分走勢（我方 − 對手）`, m.svg, m.note);
+    }).join('') + `</div>`;
+    html += chartCard('球員能力雷達圖', radarHTML(stats), '發球／攻擊／防守／攔網為各項淨貢獻，以全隊最大值為基準（50 為持平）；穩定度＝1 − 失分占比。僅供賽後檢討參考。');
+    return html + `</div>`;
+}
